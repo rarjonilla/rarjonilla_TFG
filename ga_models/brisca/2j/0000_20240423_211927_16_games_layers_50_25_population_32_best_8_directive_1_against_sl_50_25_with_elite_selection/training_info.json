@@ -1,0 +1,30 @@
+{
+    "game_type": 1,
+    "total_games": 16,
+    "num_players": 2,
+    "single_mode": true,
+    "rules": {
+        "can_change": false,
+        "last_tens": false,
+        "black_hand": false,
+        "hunt_the_three": false,
+        "only_assist": false
+    },
+    "layers": [
+        50,
+        25
+    ],
+    "population_size": 32,
+    "best_n_population": 8,
+    "generations": 100,
+    "generation": 82,
+    "cm_directive": 1,
+    "custom_crossover_ratio": 0,
+    "custom_mutation_ratio": 0,
+    "save_filename": "0000_20240423_211927_16_games_layers_50_25_population_32_best_8_directive_1_against_sl_50_25_with_elite_selection",
+    "finalized_generation": true,
+    "double_tournament": false,
+    "threads": 32.0,
+    "sl_model": "sl_models/brisca/2j/sl_heu_20240423_205947_1000_partides_layers_50_25.keras",
+    "elite_selection": true
+}

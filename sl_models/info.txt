@@ -1,0 +1,28 @@
+Nomenclatura de noms de fitxers
+
+APRENENTATGE SUPERVISAT
+sl = Supervised Learning
+hds = Has Deck Size
+nds = Not has Deck Size
+
+rp = Round Points (4)
+hsp = Has Score Points
+nsp = Not has Score Points
+
+wl = Win or Lose (5)
+{data} -> la data en que s'ha creat el model
+
+heu = Round points + heuristic (6)
+
+{data} -> la data en que s'ha creat el model
+
+Exemples:
+st_hds_rp_hsp_{data}.h5 = Supervised Training with Deck Size -> Round Points output with Score Points
+st_nds_rp_nsp = Supervised Training without Deck Size -> Round Points output without Score Points
+st_hds_wl = Supervised Training with Deck Size -> Win or Lose output
+
+ALGORITMES GENETICS
+ga = Genetic Algorithm
+
+APRENENTATGE PER REFORÇ
+rl = Reinforcement Learning
