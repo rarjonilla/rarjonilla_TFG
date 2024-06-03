@@ -57,6 +57,14 @@ CUSTOM_RULES: Dict = {
     'only_assist': False,
 }
 
+CUSTOM_RULES_2: Dict = {
+    'can_change': False,
+    'last_tens': False,
+    'black_hand': False,
+    'hunt_the_three': False,
+    'only_assist': True,
+}
+
 # APPLY_CUSTOM_RULES: Regles aplicades -> False=Regles definides per defecte, True=Definides just a sobre
 APPLY_CUSTOM_RULES: bool = True
 
@@ -71,3 +79,5 @@ INSTANT_DEAL: bool = True
 
 # HUMAN_PLAYER: Jugador humà (només versió GUI) -> True=El jugador 0 és un humà, False=Tots els jugadors són IA
 # HUMAN_PLAYER: bool = True
+
+RL_SAVE_AFTER_X_EPISODES: int = 2000000

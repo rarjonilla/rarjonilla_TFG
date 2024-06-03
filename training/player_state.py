@@ -177,8 +177,10 @@ class Player_state:
 
             inputs_array += self.__value_to_one_hot_encoding_intervals(self.__deck_size, intervals)
 
+        trump_inputs_array = []
+
         # Carta de triomf
-        if self.__model_type == 8:
+        if self.__model_type == 8 or self.__model_type == 4:
             # 2 inputs normalitzats
             # inputs_array.append(self.__min_max_normalize(self.__trump.get_suit_id(), 1, 4))
             inputs_array += self.__value_to_one_hot_encoding(self.__trump.get_suit_id(), 4)
@@ -187,8 +189,11 @@ class Player_state:
             # 4 inputs one shot per el coll: Ors -> (1, 0, 0, 0)
             # 10 inputs one shot per la carta segons preferencia de menor a major (2, 4, 5, ..., As)
             # As (0, 0, 0, 0, 0, 0, 0, 0, 0, 1)
-            inputs_array += self.__value_to_one_hot_encoding(self.__trump.get_suit_id(), 4)
-            inputs_array += self.__value_to_one_hot_encoding(self.__trump.get_training_value(), 10)
+
+            trump_inputs_array += self.__value_to_one_hot_encoding(self.__trump.get_suit_id(), 4)
+            trump_inputs_array += self.__value_to_one_hot_encoding(self.__trump.get_training_value(), 10)
+
+            inputs_array += trump_inputs_array
 
         # Cartes jugades previament
         # Per a cada possible carta jugada previament (num jugadors - 1):
@@ -196,26 +201,32 @@ class Player_state:
         # 10 inputs one shot per la carta segons preferencia de menor a major (2, 4, 5, ..., As)
         # As (0, 0, 0, 0, 0, 0, 0, 0, 0, 1)
         # Si en una "posicio" no hi ha carta jugada, tant inputs coll com carta seran "0"
+
+        played_cards_inputs_array = []
+
         for round_played_card in self.__round_played_cards:
             if round_played_card is None:
                 raise AssertionError("Round played card is None")
 
-            if self.__model_type == 8:
+            if self.__model_type == 8 or self.__model_type == 4:
                 # 2 inputs normalitzats
                 # inputs_array.append(self.__min_max_normalize(round_played_card.get_suit_id(), 0, 4))
                 inputs_array += self.__value_to_one_hot_encoding(round_played_card.get_suit_id(), 4)
                 inputs_array.append(self.__min_max_normalize(round_played_card.get_training_value(), 0, 10))
             else:
-                inputs_array += self.__value_to_one_hot_encoding(round_played_card.get_suit_id(), 4)
-                inputs_array += self.__value_to_one_hot_encoding(round_played_card.get_training_value(), 10)
+                played_cards_inputs_array += self.__value_to_one_hot_encoding(round_played_card.get_suit_id(), 4)
+                played_cards_inputs_array += self.__value_to_one_hot_encoding(round_played_card.get_training_value(), 10)
+
+                inputs_array += played_cards_inputs_array
 
         for i in range(len(self.__round_played_cards), self.__num_players - 1):
-            if self.__model_type == 8:
+            if self.__model_type == 8 or self.__model_type == 4:
                 # 2 inputs normalitzats
                 # inputs_array.append(0)
                 inputs_array += [0, 0, 0, 0]
                 inputs_array.append(0)
             else:
+                played_cards_inputs_array += [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
                 inputs_array += [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
         # Mans dels jugadors (el jugador coneix la seva mà i les cartes que ha pogut veure de la resta de rivals)
@@ -238,14 +249,17 @@ class Player_state:
         # print(hand)
 
         binary_hand = ""
+        hand_cards_inputs_array = []
         for card_in_hand in hand:
             self.hand_cards[self.__player_id][card_in_hand.get_training_idx()] = 1
         for hand_card in self.hand_cards[self.__player_id]:
             binary_hand += str(hand_card)
-            if self.__model_type < 8:
+            if (self.__model_type != 4 and self.__model_type < 8) or self.__model_type == 9:
                 inputs_array += [hand_card]
+            elif self.__model_type == 10:
+                hand_cards_inputs_array += [hand_card]
 
-        if self.__model_type == 8:
+        if self.__model_type == 8 or self.__model_type == 4:
             # 1 input normalitzat, hem de passar les 40 posicions del vector a decimal
             decimal_value = int(binary_hand, 2)
             inputs_array.append(self.__min_max_normalize(decimal_value, 1, 2**40 - 1))
@@ -253,14 +267,17 @@ class Player_state:
         # Cants per a cada jugador
         # L'ordre és des de la vista del jugador. Primer les seves cartes, després el següent a la seva esquerra, el segon a la seva esquerra, ...
         # Cada jugador és un vector one shot de 4 posicions (1 per coll)
+
+        singed_inputs_array = []
         if not self.__is_brisca:
             # Només Tute
             if self.__sing_declarations is None or len(self.__sing_declarations) == 0:
                 for i in range(self.__num_players):
-                    if self.__model_type == 8:
+                    if self.__model_type == 8 or self.__model_type == 4:
                         # 1 input normalitzat
                         inputs_array.append(0)
                     else:
+                        singed_inputs_array += [0, 0, 0, 0]
                         inputs_array += [0, 0, 0, 0]
             else:
                 for np in range(self.__num_players):
@@ -274,29 +291,36 @@ class Player_state:
                             # 1 input normalitzat
                             inputs_array.append(0)
                         else:
+                            singed_inputs_array += [0, 0, 0, 0]
                             inputs_array += [0, 0, 0, 0]
                     else:
-                        if self.__model_type == 8:
+                        if self.__model_type == 8 or self.__model_type == 4:
                             # 1 input normalitzat
                             inputs_array.append(self.__min_max_normalize(sing_declaration, 0, 4))
                         else:
                             for j in range(1, 5):
                                 if sing_declaration == j:
+                                    singed_inputs_array += [1]
                                     inputs_array += [1]
                                 else:
+                                    singed_inputs_array += [0]
                                     inputs_array += [0]
 
         # print("all_played_cards: ")
         # Cartes jugades en tota la partida
-
+        viewed_inputs_array = []
         binary_played_cards = ""
         for is_viewed in self.all_played_cards:
             binary_played_cards += str(is_viewed)
-            if self.__model_type < 8:
+            # if self.__model_type < 8 or self.__model_type == 9:
+            if self.__model_type < 8 and  self.__model_type != 4:
+                # Prova perque l'algoritme per reforç no tingui aquestes dades
                 # Vector de 40 posicions fixes on cada posicio indica una carta. 0 = no s'ha jugat la carta d'aquella posicio, 1 = s'ha jugat la carta de la posició
                 inputs_array += [is_viewed]
+            elif self.__model_type == 10:
+                viewed_inputs_array += [is_viewed]
 
-        if self.__model_type == 8:
+        if self.__model_type == 8 or self.__model_type == 4:
             decimal_value = int(binary_played_cards, 2)
             inputs_array.append(self.__min_max_normalize(decimal_value, 0, 2**40 - 1))
 
@@ -312,15 +336,17 @@ class Player_state:
             pos %= self.__num_players
             player_score = self.__score[pos]
 
-            if self.__model_type == 8:
+            if self.__model_type == 8 or self.__model_type == 4:
                 # 1 input normalitzat
                 inputs_array.append(self.__min_max_normalize(player_score, 0, max_score))
-            else:
+            elif self.__model_type == 9:
+                # Prova perque l'algoritme per reforç no tingui aquestes dades
                 inputs_array += self.__value_to_one_hot_encoding_intervals(player_score, intervals)
 
         binary_rules = ""
+        rules_input_array = []
         # Vector de regles
-        if self.__model_type == 8:
+        if self.__model_type == 8 or self.__model_type == 4:
             binary_rules += "1" if self.__rules['can_change'] else "0"
             binary_rules += "1" if self.__rules['last_tens'] else "0"
             binary_rules += "1" if self.__rules['black_hand'] else "0"
@@ -330,6 +356,14 @@ class Player_state:
             # 1 input normalitzat
             total_rules = 2**4 - 1 if self.__num_players == 2 else 2**3 - 1
             inputs_array.append(self.__min_max_normalize(int(binary_rules, 2), 0, total_rules))
+        elif self.__model_type == 10:
+            # Cada regla és un input que serà 1 si està activada i 0 si no ho està
+            rules_input_array += [1] if self.__rules['can_change'] else [0]
+            rules_input_array += [1] if self.__rules['last_tens'] else [0]
+            rules_input_array += [1] if self.__rules['black_hand'] else [0]
+
+            if self.__num_players == 2:
+                rules_input_array += [1] if self.__rules['hunt_the_three'] else [0]
         else:
             # Cada regla és un input que serà 1 si està activada i 0 si no ho està
             inputs_array += [1] if self.__rules['can_change'] else [0]
@@ -356,7 +390,10 @@ class Player_state:
             #     inputs_array.append(self.__min_max_normalize(int(binary_actions, 2), 0, total_actions))
 
         # print(inputs_array)
-        return inputs_array
+        if self.__model_type == 10:
+            return (trump_inputs_array, played_cards_inputs_array, hand_cards_inputs_array, singed_inputs_array, viewed_inputs_array, rules_input_array)
+        else:
+            return inputs_array
 
     # linia CSV que es guardarà (s'han ajuntat els inputs binaris per blocs i es calcula el seu valor decimal per ocupar menys espai)
     def csv_line(self) -> str:

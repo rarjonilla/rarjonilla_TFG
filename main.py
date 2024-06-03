@@ -1,3 +1,4 @@
+import gc
 import json
 import os
 import time
@@ -7,11 +8,13 @@ import tensorflow as tf
 
 from constants import DEFAULT_RULES
 from configuration import TOTAL_GAMES, NUM_PLAYERS, SINGLE_MODE, GAME_TYPE, MODEL_TYPE, CUSTOM_RULES, \
-    MODEL_PATH, USE_GPU
+    MODEL_PATH, USE_GPU, CUSTOM_RULES_2
 
 from game_environment.game import Non_playable_game
 from playable.playable import Playable
 from training.genetic.genetic_training import Genetic_training
+from training.genetic.genetic_training_rl import Genetic_training_rl
+from training.reinforcement.reinforcement_training import Reinforcement_training
 from training.supervised.supervised_training import Supervised_training
 
 # TODO Avaluacion de modelos. Generar 50 partidas aleatorias n veces y hacer la media de victorias / derrotas
@@ -22,6 +25,7 @@ from training.supervised.supervised_training import Supervised_training
 # TODO Falta fer que la part Playable tingui els elements privats "__variable" i crear les funcions necessàries per al funcionament
 # TODO Falta crear una estructura de carpetes millor, on hi hagi els sl_models finals, els sl_models de l'usuari i que estiguin ordenats segons tipus d'entrenament (round points, heuristic, win or lose, genetic (millors poblacions cada X generacions), per reforç, ...)
 # TODO -> ga_models -> s'ha de fer una estructura per regles aplicades (per exemple: 0000, 0001, 0010, ... 1111) per saber amb quines regles s'ha entrenat el model
+# TODO -> passar is_supervised_training als parametres de "Game_state" i fer proves de que funcioni correctament
 # pip install mypy
 def simulation(game_type: int = GAME_TYPE, total_games: int = TOTAL_GAMES, model_type: List[int] = MODEL_TYPE, model_path: List[str] = MODEL_PATH, num_players: int = NUM_PLAYERS, single_mode: bool = SINGLE_MODE, is_playable: bool = False, rules: Dict = DEFAULT_RULES, human_player: bool = False) -> None:
     # rules = CUSTOM_RULES if APPLY_CUSTOM_RULES else DEFAULT_RULES
@@ -33,7 +37,7 @@ def simulation(game_type: int = GAME_TYPE, total_games: int = TOTAL_GAMES, model
     if game_type < 1 or game_type > 2:
         raise Exception("There are only 2 game_type available, 1=brisca and 2=tute")
 
-    model_type_error: bool = any(i < 1 or i > 8 for i in model_type)
+    model_type_error: bool = any(i < 1 or i > 10 for i in model_type)
 
     if model_type_error:
         raise Exception("There are only 4 model_type available, 1=Random mode, 2=Supervised NN, 3=Genetic NN, 4=Reinforcement NN")
@@ -62,56 +66,53 @@ def simulation(game_type: int = GAME_TYPE, total_games: int = TOTAL_GAMES, model
 def training():
     training_type: int = 3
     # total_games = 500
-    total_games = 1000
+    total_games = 8000
     # total_games = 1500
+    # total_games = 1
+    train = False
 
     # model_ = f'sl_models/brisca/{i}j/st_nds_heu_20240403_202253.h5'
-    for i in range(4, 5):
+    for i in range(2, 5):
         # if i == 2:
-        tg = total_games if i == 2 else total_games * 2
+        # tg = total_games if i == 2 else total_games * 2
+        tg = total_games
 
-        save_filename: str = f'{tg}_partides'
-
-        # if i == 2:
-        do_this = False
-        if do_this:
+        save_filename: str = f'{tg}_partides_40_20'
+        do_this = True
+        if i > 2:
             print(f"brisca single {i} players")
             start_time_brisca = time.time()
-            Supervised_training(training_type, total_games=tg, game_type=1, num_players=i, single_mode=True, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, csv_filename_2=None, save_prepared_data=True, save_filename=save_filename, do_training=False)
+            Supervised_training(training_type, total_games=tg, game_type=1, num_players=i, single_mode=True, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, csv_filename_2=None, save_prepared_data=True, save_filename=save_filename, do_training=train, layers=[40, 20])
             print("--- %s seconds ---" % (time.time() - start_time_brisca))
 
             print(f"tute single no assist {i} players")
             start_time_tute = time.time()
-            Supervised_training(training_type, total_games=tg, game_type=2, num_players=i, single_mode=True, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, csv_filename_2=None, save_prepared_data=True, save_filename=save_filename, do_training=False)
+            Supervised_training(training_type, total_games=tg, game_type=2, num_players=i, single_mode=True, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, csv_filename_2=None, save_prepared_data=True, save_filename=save_filename, do_training=train, layers=[40, 20])
             print("--- %s seconds ---" % (time.time() - start_time_tute))
 
-            print(f"tute single assist {i} players")
-            start_time_tute = time.time()
-            Supervised_training(training_type, total_games=tg, game_type=2, num_players=i, single_mode=True, only_assist=True, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, csv_filename_2=None, save_prepared_data=True, save_filename=save_filename, do_training=False)
-            print("--- %s seconds ---" % (time.time() - start_time_tute))
+        print(f"tute single assist {i} players")
+        start_time_tute = time.time()
+        Supervised_training(training_type, total_games=tg, game_type=2, num_players=i, single_mode=True, only_assist=True, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, csv_filename_2=None, save_prepared_data=True, save_filename=save_filename, do_training=train, layers=[40, 20])
+        print("--- %s seconds ---" % (time.time() - start_time_tute))
 
-            # if i == 99999:
-        do_this = True
-        if do_this:
-            if i == 4:
+        if i == 4:
+            if do_this:
                 print(f"brisca team {i} players")
                 start_time_brisca = time.time()
                 # Supervised_training(training_type, total_games=tg, game_type=1, num_players=i, single_mode=False, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, prepare_data=True, train=True)
                 # Supervised_training(training_type, total_games=tg, game_type=1, num_players=i, single_mode=False, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=False, csv_filename='data/brisca/2j/20240401_215008.csv', prepare_data=True, train=True)
-                Supervised_training(training_type, total_games=tg, game_type=1, num_players=i, single_mode=False, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, csv_filename_2=None, save_prepared_data=True, save_filename=save_filename, do_training=False)
+                Supervised_training(training_type, total_games=tg, game_type=1, num_players=i, single_mode=False, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, csv_filename_2=None, save_prepared_data=True, save_filename=save_filename, do_training=train, layers=[40, 20])
                 print("--- %s seconds ---" % (time.time() - start_time_brisca))
 
-                do_this = False
-                if do_this:
-                    print(f"tute team no assist {i} players")
-                    start_time_tute = time.time()
-                    Supervised_training(training_type, total_games=tg, game_type=2, num_players=i, single_mode=False, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, csv_filename_2=None, save_prepared_data=True, save_filename=save_filename, do_training=False)
-                    print("--- %s seconds ---" % (time.time() - start_time_tute))
+            print(f"tute team no assist {i} players")
+            start_time_tute = time.time()
+            Supervised_training(training_type, total_games=tg, game_type=2, num_players=i, single_mode=False, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, csv_filename_2=None, save_prepared_data=True, save_filename=save_filename, do_training=train, layers=[40, 20])
+            print("--- %s seconds ---" % (time.time() - start_time_tute))
 
-                    print(f"tute team assist {i} players")
-                    start_time_tute = time.time()
-                    Supervised_training(training_type, total_games=tg, game_type=2, num_players=i, single_mode=False, only_assist=True, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, csv_filename_2=None, save_prepared_data=True, save_filename=save_filename, do_training=False)
-                    print("--- %s seconds ---" % (time.time() - start_time_tute))
+            print(f"tute team assist {i} players")
+            start_time_tute = time.time()
+            Supervised_training(training_type, total_games=tg, game_type=2, num_players=i, single_mode=False, only_assist=True, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, csv_filename_2=None, save_prepared_data=True, save_filename=save_filename, do_training=train, layers=[40, 20])
+            print("--- %s seconds ---" % (time.time() - start_time_tute))
 
 
 def ask_yes_no(question: str) -> bool:
@@ -294,7 +295,11 @@ def ask_models(directory: str, human_player: bool, num_players: int, training_ty
                                 model_path.append(model + "/best_models/" + final_model)
                                 break
                     elif mt == 4:
-                        model_type.append(9999999)
+                        if "_mc_multiple_" in model:
+                            model_type.append(10)
+                        else:
+                            model_type.append(9)
+                        model_path.append(model)
 
                     i += 1
 
@@ -693,8 +698,8 @@ def main() -> None:
 
 
 start_time = time.time()
-
-if USE_GPU:
+a = True
+if USE_GPU and a:
     # Configurar Tensorflow para que utilice la GPU si está disponible
     gpus = tf.config.experimental.list_physical_devices('GPU')
     if gpus:
@@ -709,16 +714,213 @@ if USE_GPU:
             print(e)
 
 # main()
-# training()3
+# training()
+
 # Genetic_training(1, 10, 2, True, CUSTOM_RULES, 'test_1', [75, 50], 50, 10, 3, 1, None, None)
-with open('ga_models/brisca/2j/0000_20240428_175356_10_games_layers_50_25_population_32_best_6_directive_1_against_sl_40_20_elite_selection/training_info.json', 'r') as f:
-    data: Dict = json.load(f)
+# with open('ga_models/brisca/2j/0000_20240515_162533_10_games_1000_generations_layers_50_25_population_32_best_6_directive_1_elite_selection/training_info.json', 'r') as f:
+    # data: Dict = json.load(f)
     # Seguir entrenament
-    Genetic_training(data["game_type"], data["total_games"], data["num_players"], data["single_mode"], data["rules"], True, False, data["save_filename"], data["layers"], data["population_size"], data["best_n_population"], data["generations"], data["generation"], data["cm_directive"], data["custom_crossover_ratio"], data["custom_mutation_ratio"], data["finalized_generation"], data["threads"], data["double_tournament"], data["sl_model"], data["elite_selection"])
+    # Genetic_training(data["game_type"], data["total_games"], data["num_players"], data["single_mode"], data["rules"], True, False, data["save_filename"], data["layers"], data["population_size"], data["best_n_population"], data["generations"], data["generation"], data["cm_directive"], data["custom_crossover_ratio"], data["custom_mutation_ratio"], data["finalized_generation"], data["threads"], data["double_tournament"], data["sl_model"], data["elite_selection"])
 
     # Començar entrenament partint dels sl_models ja entrenats d'un altre entrenament
     # Genetic_training(data["game_type"], data["total_games"], data["num_players"], data["single_mode"], data["rules"], False, True, data["save_filename"], data["layers"], data["population_size"], 2, 10, 0, 1, None, None, True, data["threads"], data["double_tournament"], data["sl_model"], True)
 
 # Començar entrenament
-# Genetic_training(1, 10, 2, True, CUSTOM_RULES, False, False, '10_games_layers_50_25_population_32_best_6_directive_1_against_sl_40_20_elite_selection', [50, 25], 32, 6, 1000, 0, 1, None, None, True, 32, False, 'sl_models/brisca/2j/sl_heu_norm_20240428_164156_norm_40_20.keras', True)
+# Genetic_training(1, 10, 2, True, CUSTOM_RULES, False, False, '10_games_1000_generations_layers_50_25_population_32_best_6_directive_1_elite_selection', [50, 25], 32, 6, 1000, 0, 1, None, None, True, 32, False, None, True)
+
+# RL
+# Reinforcement_training(1, 500000, 2,  True, CUSTOM_RULES, ['rl_models/brisca/2j/0000_20240501_222500_500000_partides_eps_005_gamma_1_negative_points_agent_1_continue_to_1000000', 'rl_models/brisca/2j/0000_20240501_222500_500000_partides_eps_005_gamma_1_negative_points_agent_2_continue_to_1000000', None, None])
+
+# Macro entrenament (només un agent que juga contra si mateix i aprèn dels dos jugadors alhora)
+# episodes = 3000000
+# a = Reinforcement_training(1, episodes, 2, True, CUSTOM_RULES, [f'rl_models/brisca/2j/0000_20240508_073000_5000000_partides_eps_01_gamma_1_negative_points_only_one_agent_limited_inputs', None, None, None], 0.1, 1e-7, 1.0, True, False)
+# a = Reinforcement_training(1, episodes, 2, True, CUSTOM_RULES, [f'rl_models/brisca/2j/0000_20240508_073000_5000000_partides_eps_01_gamma_1_negative_points_only_one_agent_limited_inputs', None, None, None], 0.1, 1e-7, 1.0, True, True)
+# a = None
+# gc.collect()
+# episodes = 3000000
+# a = Reinforcement_training(1, episodes, 2, True, CUSTOM_RULES, [f'rl_models/brisca/2j/0000_20240511_164800_2000000_partides_eps_01_gamma_1_negative_points_only_one_agent_limited_inputs_no_decrease_eps_simple_state', None, None, None], 0.1, 0, 1.0, True, False)
+# episodes = 100
+# a = Reinforcement_training(1, episodes, 2, True, CUSTOM_RULES, [f'rl_models/brisca/2j/0000_20240512_090600_2000000_partides_eps_01_gamma_1_negative_points_only_one_agent_limited_inputs_no_decrease_eps_mc_multiple_', None, None, None], 0.1, 0, 1.0, True, True)
+
+# Proves -> no funciona bé
+do_this = False
+if do_this:
+    for i in range(2, 5):
+        episodes: int = 500000
+        a = Reinforcement_training(1, episodes, i, True, CUSTOM_RULES, [
+            f'rl_models/brisca/{i}j/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_1',
+            f'rl_models/brisca/{i}j/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_2',
+            f'rl_models/brisca/{i}j/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_3',
+            f'rl_models/brisca/{i}j/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_4'], 0.05, 1e-7, 1.0, False, False)
+        a = Reinforcement_training(2, episodes, i, True, CUSTOM_RULES, [
+            f'rl_models/tute/{i}j/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_1',
+            f'rl_models/tute/{i}j/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_2',
+            f'rl_models/tute/{i}j/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_3',
+            f'rl_models/tute/{i}j/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_4'], 0.05, 1e-7, 1.0, False, False)
+
+        a = Reinforcement_training(2, episodes, i, True, CUSTOM_RULES_2, [
+            f'rl_models/tute_only_assist/{i}j/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_1',
+            f'rl_models/tute_only_assist/{i}j/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_2',
+            f'rl_models/tute_only_assist/{i}j/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_3',
+            f'rl_models/tute_only_assist/{i}j/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_4'], 0.05, 1e-7, 1.0, False, False)
+
+        if i == 4:
+            a = Reinforcement_training(1, episodes, i, False, CUSTOM_RULES, [
+                f'rl_models/brisca/{i}jt/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_1',
+                f'rl_models/brisca/{i}jt/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_2',
+                f'rl_models/brisca/{i}jt/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_3',
+                f'rl_models/brisca/{i}jt/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_4'], 0.05, 1e-7, 1.0, False, False)
+            a = Reinforcement_training(2, episodes, i, False, CUSTOM_RULES, [
+                f'rl_models/tute/{i}jt/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_1',
+                f'rl_models/tute/{i}jt/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_2',
+                f'rl_models/tute/{i}jt/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_3',
+                f'rl_models/tute/{i}jt/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_4'], 0.05, 1e-7, 1.0, False, False)
+
+            a = Reinforcement_training(2, episodes, i, False, CUSTOM_RULES_2, [
+                f'rl_models/tute_only_assist/{i}jt/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_1',
+                f'rl_models/tute_only_assist/{i}jt/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_2',
+                f'rl_models/tute_only_assist/{i}jt/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_3',
+                f'rl_models/tute_only_assist/{i}jt/0000_20240503_073700_{episodes}_partides_eps_005_gamma_1_negative_points_agent_4'], 0.05, 1e-7, 1.0, False, False)
+
+# a = Genetic_training_rl(1, 10, 2, True, CUSTOM_RULES, False, False, '10_games_200_population_best_20_10000_generation_005_eps_rl', 200, 20, 10000, 0, 1, None, None, True, 500, False, None, True, 0.05, 1e-7, 1.0, False)
+
+# with open('ga_models/brisca/2j/0000_20240513_072948_10_games_200_population_best_20_10000_generation_005_eps_rl/training_info.json', 'r') as f:
+    # data: Dict = json.load(f)
+    # Seguir entrenament
+    # Genetic_training_rl(data["game_type"], data["total_games"], data["num_players"], data["single_mode"], data["rules"], True, False, data["save_filename"], data["population_size"], data["best_n_population"], data["generations"], data["generation"], data["cm_directive"], data["custom_crossover_ratio"], data["custom_mutation_ratio"], data["finalized_generation"], data["threads"], data["double_tournament"], data["sl_model"], data["elite_selection"], data["eps"], data["eps_decrease"], data["gamma"], data["only_one_agent"])
+
+training_type = 3
+tg = 1
+do_this = False
+if do_this:
+    print(f"brisca single 2 players")
+    start_time_brisca = time.time()
+    a = Supervised_training(training_type, total_games=tg, game_type=1, num_players=2, single_mode=True, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=False, csv_filename='data/brisca/2j/20240519_225107_8000_partides_40_20_prepared_normalized.csv', csv_filename_2=None, save_prepared_data=False, save_filename='8000_partides_3_capes', do_training=True)
+    a = None
+    gc.collect()
+    print("--- %s seconds ---" % (time.time() - start_time_brisca))
+
+    print(f"tute single no assist 2 players")
+    start_time_tute = time.time()
+    a = Supervised_training(training_type, total_games=tg, game_type=2, num_players=2, single_mode=True, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=False, csv_filename='data/tute/2j/20240519_231912_8000_partides_40_20_prepared_normalized.csv', csv_filename_2=None, save_prepared_data=False, save_filename='8000_partides_3_capes', do_training=True)
+    a = None
+    gc.collect()
+    print("--- %s seconds ---" % (time.time() - start_time_tute))
+
+    print(f"tute single assist 2 players")
+    start_time_tute = time.time()
+    a = Supervised_training(training_type, total_games=tg, game_type=2, num_players=2, single_mode=True, only_assist=True, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=False, csv_filename='data/tute_only_assist/2j/20240520_081404_8000_partides_40_20_prepared_normalized.csv', csv_filename_2=None, save_prepared_data=False, save_filename='8000_partides_3_capes', do_training=True)
+    a = None
+    gc.collect()
+    print("--- %s seconds ---" % (time.time() - start_time_tute))
+
+    print(f"brisca single 3 players")
+    start_time_brisca = time.time()
+    a = Supervised_training(training_type, total_games=tg, game_type=1, num_players=3, single_mode=True, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=False, csv_filename='data/brisca/3j/20240520_085452_8000_partides_40_20_prepared_normalized.csv', csv_filename_2=None, save_prepared_data=False, save_filename='8000_partides_3_capes', do_training=True)
+    a = None
+    gc.collect()
+    print("--- %s seconds ---" % (time.time() - start_time_brisca))
+
+    print(f"tute single no assist 3 players")
+    start_time_tute = time.time()
+    a = Supervised_training(training_type, total_games=tg, game_type=2, num_players=3, single_mode=True, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=False, csv_filename='data/tute/3j/20240520_090938_8000_partides_40_20_prepared_normalized.csv', csv_filename_2=None, save_prepared_data=False, save_filename='8000_partides_3_capes', do_training=True)
+    a = None
+    gc.collect()
+    print("--- %s seconds ---" % (time.time() - start_time_tute))
+
+    print(f"tute single assist 3 players")
+    start_time_tute = time.time()
+    a = Supervised_training(training_type, total_games=tg, game_type=2, num_players=3, single_mode=True, only_assist=True, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=False, csv_filename='data/tute_only_assist/3j/20240520_092927_8000_partides_40_20_prepared_normalized.csv', csv_filename_2=None, save_prepared_data=False, save_filename='8000_partides_3_capes', do_training=True)
+    a = None
+    gc.collect()
+    print("--- %s seconds ---" % (time.time() - start_time_tute))
+
+    print(f"brisca single 4 players")
+    start_time_brisca = time.time()
+    a = Supervised_training(training_type, total_games=tg, game_type=1, num_players=4, single_mode=True, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=False, csv_filename='data/brisca/4j/20240520_094925_8000_partides_40_20_prepared_normalized.csv', csv_filename_2=None, save_prepared_data=False, save_filename='8000_partides_3_capes', do_training=True)
+    a = None
+    gc.collect()
+    print("--- %s seconds ---" % (time.time() - start_time_brisca))
+
+    print(f"tute single no assist 4 players")
+    start_time_tute = time.time()
+    a = Supervised_training(training_type, total_games=tg, game_type=2, num_players=4, single_mode=True, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=False, csv_filename='data/tute/4j/20240520_100530_8000_partides_40_20_prepared_normalized.csv', csv_filename_2=None, save_prepared_data=False, save_filename='8000_partides_3_capes', do_training=True)
+    a = None
+    gc.collect()
+    print("--- %s seconds ---" % (time.time() - start_time_tute))
+
+    print(f"tute single assist 4 players")
+    start_time_tute = time.time()
+    a = Supervised_training(training_type, total_games=tg, game_type=2, num_players=4, single_mode=True, only_assist=True, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=False, csv_filename='data/tute_only_assist/4j/20240520_102617_8000_partides_40_20_prepared_normalized.csv', csv_filename_2=None, save_prepared_data=False, save_filename='8000_partides_3_capes', do_training=True)
+    a = None
+    gc.collect()
+    print("--- %s seconds ---" % (time.time() - start_time_tute))
+
+    print(f"brisca team 4 players")
+    start_time_brisca = time.time()
+    # Supervised_training(training_type, total_games=tg, game_type=1, num_players=i, single_mode=False, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, prepare_data=True, train=True)
+    # Supervised_training(training_type, total_games=tg, game_type=1, num_players=i, single_mode=False, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=False, csv_filename='data/brisca/2j/20240401_215008.csv', prepare_data=True, train=True)
+    a = Supervised_training(training_type, total_games=tg, game_type=1, num_players=4, single_mode=False, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=False, csv_filename='data/brisca/4jt/20240520_104822_8000_partides_40_20_prepared_normalized.csv', csv_filename_2=None, save_prepared_data=True, save_filename='8000_partides_3_capes', do_training=True)
+    a = None
+    gc.collect()
+    print("--- %s seconds ---" % (time.time() - start_time_brisca))
+
+    print(f"tute team no assist 4 players")
+    start_time_tute = time.time()
+    a = Supervised_training(training_type, total_games=tg, game_type=2, num_players=4, single_mode=False, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=False, csv_filename='data/tute/4jt/20240520_110521_8000_partides_40_20_prepared_normalized.csv', csv_filename_2=None, save_prepared_data=True, save_filename='8000_partides_3_capes', do_training=True)
+    a = None
+    gc.collect()
+    print("--- %s seconds ---" % (time.time() - start_time_tute))
+
+    print(f"tute team assist 4 players")
+    start_time_tute = time.time()
+    a = Supervised_training(training_type, total_games=tg, game_type=2, num_players=4, single_mode=False, only_assist=True, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=False, csv_filename='data/tute_only_assist/4jt/20240520_112634_8000_partides_40_20_prepared_normalized.csv', csv_filename_2=None, save_prepared_data=True, save_filename='8000_partides_3_capes', do_training=True)
+    a = None
+    gc.collect()
+    print("--- %s seconds ---" % (time.time() - start_time_tute))
+
+# TEST
+# a = Genetic_training_rl(1, 10, 2, True, CUSTOM_RULES, False, False, 'test_4_generations', 200, 20, 4, 0, 5, 1, 0, True, 500, False, None, True, 0.05, 1e-7, 1.0, False)
 # print("--- %s seconds ---" % (time.time() - start_time))
+
+
+rules = {'can_change': False, 'last_tens': False, 'black_hand': False, 'hunt_the_three': False, 'only_assist': False}
+# do_this = False
+# if do_this:
+episodes = 2000000
+# a = Reinforcement_training(2, episodes, 2, False, rules, [f'rl_models/tute_only_assist/2j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
+a = None
+gc.collect()
+episodes = 1000000
+# a = Reinforcement_training(2, episodes, 2, False, rules, [f'rl_models/tute_only_assist/2j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
+a = None
+gc.collect()
+
+episodes = 1000000
+# a = Reinforcement_training(2, episodes, 3, False, rules, [f'rl_models/tute_only_assist/3j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
+a = None
+gc.collect()
+episodes = 2000000
+a = Reinforcement_training(2, episodes, 3, False, rules, [f'rl_models/tute_only_assist/3j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
+a = None
+gc.collect()
+
+episodes = 1000000
+a = Reinforcement_training(2, episodes, 4, False, rules, [f'rl_models/tute_only_assist/4j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
+a = None
+gc.collect()
+episodes = 2000000
+a = Reinforcement_training(2, episodes, 4, False, rules, [f'rl_models/tute_only_assist/4j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
+a = None
+gc.collect()
+
+episodes = 1000000
+a = Reinforcement_training(2, episodes, 4, False, rules, [f'rl_models/tute_only_assist/4jt/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
+a = None
+gc.collect()
+episodes = 2000000
+a = Reinforcement_training(2, episodes, 4, False, rules, [f'rl_models/tute_only_assist/4jt/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
+a = None
+gc.collect()
+
+print("--- %s seconds ---" % (time.time() - start_time))

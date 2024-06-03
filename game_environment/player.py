@@ -6,15 +6,18 @@ from game_environment.hand import Hand
 from game_environment.card import Card
 from training.NeuralNetwork import Neural_network
 from training.player_state import Player_state
+from training.reinforcement.monte_carlo import Monte_carlo
+from training.reinforcement.monte_carlo_multiple_key import Monte_carlo_multiple_state
 
 
 class Player:
     """
     Classe Player...
     """
-    def __init__(self, player_id: int, model_type: int, model_path: Optional[str], rules: Dict) -> None:
+    def __init__(self, player_id: int, model_type: int, model_path: Optional[str], rules: Dict, rl_eps: float, rl_eps_decrease: float, rl_gamma: float, rl_agent: Optional[Monte_carlo], training: bool = False) -> None:
         self.__id: int = player_id
         self.__hand: Hand = Hand(rules['only_assist'])
+        self.__training = training
 
         # Training and IA
         self.__model_type: int = model_type
@@ -22,8 +25,20 @@ class Player:
         self.__rules: Dict = rules
 
         # Es crea la xarxa neuronal
-        if model_type != 1:
+        self.nn = None
+        self.rl_agent: Monte_carlo = None
+        if model_type != 1 and model_type != 9 and model_type != 10:
             self.nn = Neural_network(model_type, model_path)
+        elif model_type == 9:
+            if rl_agent is None:
+                self.rl_agent = Monte_carlo(rl_eps, rl_eps_decrease, rl_gamma, model_type, model_path)
+            else:
+                self.rl_agent = rl_agent
+        elif model_type == 10:
+            if rl_agent is None:
+                self.rl_agent = Monte_carlo_multiple_state(rl_eps, rl_eps_decrease, rl_gamma, model_type, model_path, self.__training)
+            else:
+                self.rl_agent = rl_agent
 
         # info de round
         # self.__actual_round_uuid: Optional[UUID] = None
@@ -36,17 +51,26 @@ class Player:
     def is_model_type_random(self) -> bool:
         return self.__model_type == 1
 
+    def is_model_type_rl(self) -> bool:
+            return self.__model_type == 9 or self.__model_type == 10
+
     # Functions
     def del_model(self) -> None:
-        self.nn.del_model()
-        del self.nn
+        if self.nn is not None:
+            self.nn.del_model()
+            del self.nn
+        elif self.rl_agent is not None:
+            self.rl_agent.del_model()
+            del self.rl_agent
 
     def __is_rule_active(self, rule_key: str) -> bool:
         return self.__rules[rule_key]
 
     def get_next_action(self, there_is_trump_card: bool, change_card_is_higher_than_seven: bool, trump_suit_id: int, highest_suit_card: Optional[Card], deck_has_cards: bool, highest_trump_played: Optional[Card], player_state: Player_state = None) -> Tuple[int, Optional[Card]]:
-        if self.__model_type != 1:
+        if self.__model_type != 1 and self.__model_type != 9 and self.__model_type != 10:
             return self.__get_next_action_NN(there_is_trump_card, change_card_is_higher_than_seven, trump_suit_id, highest_suit_card, deck_has_cards, highest_trump_played, player_state)
+        elif self.__model_type == 9 or self.__model_type == 10:
+            return self.__get_next_action_RL(there_is_trump_card, change_card_is_higher_than_seven, trump_suit_id, highest_suit_card, deck_has_cards, highest_trump_played, player_state)
         elif self.__model_type == 1:
             return self.__get_next_action_random(there_is_trump_card, change_card_is_higher_than_seven, trump_suit_id, highest_suit_card, deck_has_cards, highest_trump_played)
         else:
@@ -195,9 +219,54 @@ class Player:
                 # print("jugar carta", position, card)
                 return position, card
 
+    def __get_next_action_RL(self, there_is_trump_card: bool, change_card_is_higher_than_seven: bool, trump_suit_id: int, highest_suit_card: Optional[Card], deck_has_cards: bool, highest_trump_played: Optional[Card], player_state: Player_state) -> Tuple[int, Optional[Card]]:
+        # 9 / 10 RL Montecarlo
+        inputs_array: List[int] = player_state.get_inputs_array()
+        if self.__model_type == 9:
+            inputs_array_str: str = ''.join(map(str, inputs_array))
+            state: int = int(inputs_array_str, 2)
+        else:
+            state_list: List[int] = []
+            for input_array in inputs_array:
+                if len(input_array) > 0:
+                    input_array_str: str = ''.join(map(str, input_array))
+                    state_list.append(int(input_array_str, 2))
+                else:
+                    state_list.append(0)
+
+            state = tuple(state_list)
+
+        self.rl_agent.set_state(state, self.__id)
+
+        actions: List[int] = []
+
+        if self.__is_rule_active('can_change') and there_is_trump_card and self.__hand.can_change(change_card_is_higher_than_seven, trump_suit_id):
+            actions.append(40)
+
+        playable_cards_positions: List[int] = self.__hand.get_playable_cards_positions(trump_suit_id, highest_suit_card, deck_has_cards, highest_trump_played)
+        # print("playable_cards_positions", playable_cards_positions)
+
+        for card_pos in playable_cards_positions:
+            card_pos, card_in_hand = self.__hand.get_card_in_position_no_remove(card_pos)
+            actions.append(card_in_hand.get_training_idx())
+
+        self.rl_agent.set_action_space(actions, self.__id)
+        action = self.rl_agent.choose_action_from_policy(self.__id)
+
+        if action == 40:
+            return 0, None
+        else:
+            card_pos = actions.index(action)
+            card_pos -= 1 if 40 in actions else 0
+
+            position, card = self.__hand.get_card_in_position(card_pos)
+            return position, card
+
     def get_next_action_sing_declarations(self, trump_suit_id: int, player_state: Player_state) -> Optional[int]:
         if self.__model_type == 2 or self.__model_type == 3 or self.__model_type == 4 or self.__model_type == 6 or self.__model_type == 8:
             return self.__get_next_action_NN_sing_declaration(trump_suit_id, player_state)
+        elif self.__model_type == 9 or self.__model_type == 10:
+            return self.__get_next_action_RL_sing_declaration(trump_suit_id, player_state)
         elif self.__model_type == 1:
             return self.__get_next_action_random_sing_declaration(trump_suit_id)
         else:
@@ -282,6 +351,49 @@ class Player:
         else:
             return None
 
+    def __get_next_action_RL_sing_declaration(self, trump_suit_id: int, player_state: Player_state) -> Tuple[int, Optional[Card]]:
+        # 9 / 10 RL Montecarlo
+        inputs_array: List[int] = player_state.get_inputs_array()
+        if self.__model_type == 9:
+            inputs_array_str: str = ''.join(map(str, inputs_array))
+            state: int = int(inputs_array_str, 2)
+        else:
+            state_list: List[int] = []
+            for input_array in inputs_array:
+                if len(input_array) > 0:
+                    input_array_str: str = ''.join(map(str, input_array))
+                    state_list.append(int(input_array_str, 2))
+                else:
+                    state_list.append(0)
+
+            state = tuple(state_list)
+
+        self.rl_agent.set_state(state, self.__id)
+
+        # # 9 RL Montecarlo
+        #         inputs_array: List[int] = player_state.get_inputs_array()
+        #         inputs_array_str: str = ''.join(map(str, inputs_array))
+        #         state: int = int(inputs_array_str, 2)
+        #         self.rl_agent.set_state(state, self.__id)
+
+        actions: List[int] = []
+
+        # Es comprova si existeixen tutes a la seva mà
+        sing_suits_ids: List[int] = self.__hand.sing_suits_in_hand()
+        # Si un d'ells és les 40 no es pot triar
+        if trump_suit_id in sing_suits_ids:
+            return trump_suit_id
+        elif len(sing_suits_ids) > 0:
+            # Es tria un d'ells
+
+            for ss in sing_suits_ids:
+                actions.append(ss + 40)
+
+            self.rl_agent.set_action_space(actions, self.__id)
+            action = self.rl_agent.choose_action_from_policy(self.__id)
+
+            return action - 40
+
     def init_hand(self, round_uuid: UUID) -> None:
         self.__hand = Hand(self.__rules['only_assist'])
         self.__actual_round_uuid = round_uuid
@@ -353,6 +465,22 @@ class Player:
 
     def hand_tute_cards_position(self) -> Optional[List[int]]:
         return self.__hand.tute_cards_position()
+
+    # RL Functions
+    def rl_add_memory(self):
+        self.rl_agent.add_memory(self.__id)
+
+    def rl_new_episode(self):
+        self.rl_agent.new_episode()
+
+    def rl_save_model(self):
+        self.rl_agent.save_model()
+
+    def rl_set_reward(self, reward: int):
+        self.rl_agent.set_reward(reward, self.__id)
+
+    def rl_update_policy(self):
+        self.rl_agent.update_policy()
 
     # Print
     def show_hand(self) -> None:

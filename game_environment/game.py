@@ -1,5 +1,6 @@
 import copy
 import gc
+from tqdm import tqdm
 from typing import List, Optional, Dict, Tuple
 from uuid import uuid1, UUID
 
@@ -13,20 +14,21 @@ from constants import NUM_CARDS_BRISCA, NUM_CARDS_TUTE, SUITS
 
 from game_environment.round import Round
 from game_environment.score import Score
-from configuration import PRINT_CONSOLE
+from configuration import PRINT_CONSOLE, RL_SAVE_AFTER_X_EPISODES
 from training.game_state import Game_state
 from training.player_state import Player_state
 
 from keras import backend as K
 
-
+from training.reinforcement.monte_carlo import Monte_carlo
+from training.reinforcement.monte_carlo_multiple_key import Monte_carlo_multiple_state
 
 
 class Game:
     """
     docstring de la classe game_environment
     """
-    def __init__(self, game_type: int, total_games: int, model_type: List[int], model_path: List[str], num_players: int, single_mode: bool, rules: Dict, training: bool, csv_filename: str) -> None:
+    def __init__(self, game_type: int, total_games: int, model_type: List[int], model_path: List[str], num_players: int, single_mode: bool, rules: Dict, training: bool, csv_filename: str, rl_eps: float = 0.05, rl_eps_decrease: float = 1e-7, rl_gamma: float = 1.0, rl_only_one_agent: bool = False, is_supervised_training: bool = False) -> None:
         self._total_games: int = total_games
 
         self.__game_type: int = game_type
@@ -63,16 +65,29 @@ class Game:
 
         self._num_cards: int = NUM_CARDS_BRISCA if game_type == 1 else NUM_CARDS_TUTE
 
-        # Es creen els jugadors
-        for id_player in range(0, num_players):
-            # print(self.__model_path[id_player])
-            player: Player = Player(id_player, self.__model_type[id_player], self._model_path[id_player], rules)
-            self._players.append(player)
+        self._rl_only_one_agent: bool = rl_only_one_agent
 
         # Training and AI
         self._training: bool = training
         self._csv_filename: str = csv_filename
-        self._game_state: Game_state = Game_state(self._is_brisca(), self._single_mode, self._num_cards, self._num_players, self._rules, self.__model_type)
+        self._is_supervised_training: bool = is_supervised_training
+        self._game_state: Game_state = Game_state(self._is_brisca(), self._single_mode, self._num_cards,
+                                                  self._num_players, self._rules, self.__model_type, is_supervised_training)
+
+        if self._rl_only_one_agent:
+            if self.__model_type[0] == 9:
+                self._rl_agent: Monte_carlo = Monte_carlo(rl_eps, rl_eps_decrease, rl_gamma, model_type[0], model_path[0])
+            elif self.__model_type[0] == 10:
+                self._rl_agent: Monte_carlo_multiple_state = Monte_carlo_multiple_state(rl_eps, rl_eps_decrease, rl_gamma, model_type[0], model_path[0], False, self._training)
+
+        # Es creen els jugadors
+        for id_player in range(0, num_players):
+            # print(self.__model_path[id_player])
+            if self._rl_only_one_agent:
+                player: Player = Player(id_player, self.__model_type[id_player], self._model_path[id_player], rules, None, None, None, self._rl_agent, self._training)
+            else:
+                player: Player = Player(id_player, self.__model_type[id_player], self._model_path[id_player], rules, rl_eps, rl_eps_decrease, rl_gamma, None, self._training)
+            self._players.append(player)
 
         # self.__reset_players_seen_cards()
 
@@ -168,6 +183,16 @@ class Game:
                 for singed_tute_suits in player.hand_singed_tute_suits():
                     print("Player ", player.get_id(), " singed tute of " + SUITS[singed_tute_suits])
 
+        # Training RL
+        if self._training:
+            if self._rl_only_one_agent:
+                if self._players[0].is_model_type_rl():
+                    self._players[0].rl_update_policy()
+            else:
+                for player in self._players:
+                    if player.is_model_type_rl():
+                        player.rl_update_policy()
+
     def _has_ended_game(self) -> bool:
         return not self._players[0].hand_has_cards()
 
@@ -190,6 +215,10 @@ class Game:
         for player in self._players:
             # Reiniciem les mans del jugador
             player.init_hand(round_uuid)
+
+            # Si el model es RL, s'ha de iniciar un nou episode
+            if player.is_model_type_rl():
+                player.rl_new_episode()
 
         card: Optional[Card] = None
 
@@ -319,6 +348,18 @@ class Game:
             singed_tute: bool = self._round.calc_round_results()
             self._last_round_winner_id = self._round.get_round_winner()
 
+            # Training RL -> set reward and add memory
+            if self._training:
+                for player in self._players:
+                    if player.is_model_type_rl():
+                        if player.get_id() == self._last_round_winner_id or (not self._single_mode and player.get_id() % 2 == self._last_round_winner_id % 2):
+                            player.rl_set_reward(self._round.get_round_points())
+                        else:
+                            # player.rl_set_reward(0)
+                            player.rl_set_reward(-self._round.get_round_points())
+                        if player.is_model_type_rl():
+                            player.rl_add_memory()
+
             singed_tute_suit: int = 0
             if singed_tute:
                 singed_tute_suit = self._round.get_singed_suit()
@@ -336,8 +377,8 @@ class Game:
 
 
 class Non_playable_game(Game):
-    def __init__(self, game_type: int, total_games: int, model_type: List[int], model_path: List[Optional[str]], num_players: int, single_mode: bool, rules: Dict, training: bool, csv_filename: str) -> None:
-        super().__init__(game_type, total_games, model_type, model_path, num_players, single_mode, rules, training, csv_filename)
+    def __init__(self, game_type: int, total_games: int, model_type: List[int], model_path: List[Optional[str]], num_players: int, single_mode: bool, rules: Dict, training: bool, csv_filename: str, rl_eps: float = 0.05, rl_eps_decrease: float = 1e-7, rl_gamma: float = 1.0, rl_only_one_agent: bool = False, is_supervised_training: bool = False) -> None:
+        super().__init__(game_type, total_games, model_type, model_path, num_players, single_mode, rules, training, csv_filename, rl_eps, rl_eps_decrease, rl_gamma, rl_only_one_agent, is_supervised_training)
         self.__start_game()
 
     # Private functions
@@ -355,6 +396,9 @@ class Non_playable_game(Game):
                     # player: Player = self.players[player_turn]
 
                     player_state = self._game_state.get_player_state(player.get_id())
+                    if player_state is None:
+                        self._game_state.new_turn(player.get_id(), player.hand_get_cards_copy())
+                        player_state = self._game_state.get_player_state(player.get_id())
 
                     sing_declaration: Optional[int] = player.get_next_action_sing_declarations(self._deck.get_trump_suit_id(), player_state)
                     sing_declarations.append(sing_declaration)
@@ -423,28 +467,52 @@ class Non_playable_game(Game):
         return card_position, card_or_change
 
     def __start_game(self) -> None:
-        game_num: int = 0
+        game_num: int = 1
 
-        print("simulation start", self._model_path[0], self._model_path[1])
-
-        while game_num < self._total_games:
+        # print("simulation start", self._model_path[0], self._model_path[1])
+        for game_num in tqdm(range(self._total_games)):
+        # while game_num <= self._total_games:
             self._score.reset_last_winners()
             self._new_game()
             self.__next_round(first_round=True)
             self._game_results()
+
+            # Training RL
+            # Es guarda el model de RL cada 1000 simulacions
+            if self._training and game_num % RL_SAVE_AFTER_X_EPISODES == 0 and game_num != self._total_games and game_num != 0:
+                if self._rl_only_one_agent:
+                    self._rl_agent.save_model()
+                    print(self._model_path[0], " saved game ", game_num)
+                else:
+                    for player in self._players:
+                        if player.is_model_type_rl():
+                            player.rl_save_model()
+                            print(self._model_path[player.get_id()], " saved game ", game_num)
 
             game_num += 1
             if PRINT_CONSOLE:
                 print("game_environment ", game_num, " of ", self._total_games, end="\r")
 
         # if PRINT_CONSOLE:
-        print("simulation end", self._model_path[0], self._model_path[1])
+        # print("simulation end", self._model_path[0], self._model_path[1])
         self._score.show_total_game_score()
 
         # Training
         # Emmagatzemar csv amb totes les dades
-        if self._training:
+        if self._training and self._csv_filename is not None:
             self._game_state.save_csv(self._csv_filename)
+
+        # Training RL
+        # Es guarda el model de RL al finalitzar
+        if self._training:
+            if self._rl_only_one_agent:
+                self._rl_agent.save_model()
+                print(self._model_path[0], " saved game ", game_num)
+            else:
+                for player in self._players:
+                    if player.is_model_type_rl():
+                        player.rl_save_model()
+                        print(self._model_path[player.get_id()], " saved")
 
         # Training and AI
         # self._game_state.get_csv()
@@ -452,8 +520,8 @@ class Non_playable_game(Game):
 
 
 class Playable_game(Game):
-    def __init__(self, game_type: int, total_games: int, model_type: List[int], model_path: List[Optional[str]], num_players: int, single_mode: bool, rules: Dict, training: bool, csv_filename: str, human_player: bool) -> None:
-        super().__init__(game_type, total_games, model_type, model_path, num_players, single_mode, rules, training, csv_filename)
+    def __init__(self, game_type: int, total_games: int, model_type: List[int], model_path: List[Optional[str]], num_players: int, single_mode: bool, rules: Dict, training: bool, csv_filename: str, human_player: bool, is_supervised_training: bool = False) -> None:
+        super().__init__(game_type, total_games, model_type, model_path, num_players, single_mode, rules, training, csv_filename, is_supervised_training=is_supervised_training)
 
         self.__human_player = human_player
 

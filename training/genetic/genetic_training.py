@@ -186,7 +186,7 @@ class Genetic_training:
         inputs = 0
         if self.__is_brisca():
             if self.__num_players == 2:
-                inputs = 126
+                inputs = 112
             elif self.__num_players == 3:
                 inputs = 146
             elif self.__num_players == 4:
@@ -263,7 +263,7 @@ class Genetic_training:
             for i in range(self.__population_size):
                 model_name = f"ga_generation_0_nn_{i + 1}"
                 model = self.__generate_random_nn(model_name)
-                print(f"{self.__directory}{model_name}.keras")
+                # print(f"{self.__directory}{model_name}.keras")
                 model.save(f"{self.__directory}{model_name}.keras")
 
     def __select_pairings(self, population: List[str]) -> List[List[str]]:
@@ -537,7 +537,7 @@ class Genetic_training:
         if self.__sl_model is not None:
             rivals_model_type = [7, 8, 8, 8]
 
-        print(rivals_model_type)
+        # print(rivals_model_type)
 
         # Agafar tota la població
         population: List[str] = self.__get_all_population()
@@ -571,7 +571,7 @@ class Genetic_training:
             rivals_model_name: List[str] = []
             for idm_model, model_name in enumerate(pairing_):
                 # print(model_name)
-                if idm_model == 0:
+                if rivals_model_type[idm_model] == 7:
                     rivals_model_name.append(self.__directory + model_name)
                 else:
                     rivals_model_name.append(model_name)

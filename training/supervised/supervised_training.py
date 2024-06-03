@@ -161,7 +161,7 @@ class Supervised_training:
             rules['only_assist'] = self.__only_assist
 
             # print(rules)
-            game: Non_playable_game = Non_playable_game(self.__game_type, self.__total_games, self.__rivals_model_type, self.__rivals_model_name, self.__num_players, self.__single_mode, rules, True, self.__csv_filename)
+            game: Non_playable_game = Non_playable_game(self.__game_type, self.__total_games, self.__rivals_model_type, self.__rivals_model_name, self.__num_players, self.__single_mode, rules, True, self.__csv_filename, is_supervised_training=True)
 
     def __dummy_vars(self, df: DataFrame, column_name: str, intervals: Optional[List[int]], labels: Optional[List[str]], all_categories: Optional[List[int]]) -> DataFrame:
         if intervals is not None and labels is not None:

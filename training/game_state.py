@@ -12,7 +12,7 @@ from training.player_state import Player_state
 class Game_state:
     """Classe training player state....."""
 
-    def __init__(self, is_brisca: bool, single_mode: bool, num_cards: int, num_players: int, rules: Dict, model_type: List[int]) -> None:
+    def __init__(self, is_brisca: bool, single_mode: bool, num_cards: int, num_players: int, rules: Dict, model_type: List[int], is_supervised_training: bool = False) -> None:
         self.__is_brisca = is_brisca
         self.__single_mode = single_mode
         self.__num_cards: int = num_cards
@@ -20,6 +20,7 @@ class Game_state:
         self.__trump: Optional[Card] = None
         self.__rules: Dict = rules
         self.__model_type: List[int] = model_type
+        self.__is_supervised_training = is_supervised_training
 
         self.__deck_size: int = 0
 
@@ -85,24 +86,26 @@ class Game_state:
                 # else:
                 #     player_play.set_round_score(- round_.get_round_points())
 
-                self.__game_plays[player_id].append(player_play)
+                if self.__is_supervised_training:
+                    self.__game_plays[player_id].append(player_play)
 
             self.__round_plays[player_id] = []
 
     # S'afegeix si ha guanyat la partida
     def finalize_game(self, score: Score) -> None:
-        winners: List[int] = score.get_last_winners()
+        if self.__is_supervised_training:
+            winners: List[int] = score.get_last_winners()
 
-        for player_id, player_plays in enumerate(self.__game_plays):
-            for player_play in player_plays:
-                if player_id in winners or (not self.__single_mode and (player_id % 2 in winners)):
-                    player_play.set_winner()
+            for player_id, player_plays in enumerate(self.__game_plays):
+                for player_play in player_plays:
+                    if player_id in winners or (not self.__single_mode and (player_id % 2 in winners)):
+                        player_play.set_winner()
 
-                # print(player_play.csv_line())
+                    # print(player_play.csv_line())
+                    if self.__is_supervised_training:
+                        self.__all_plays.append(player_play)
 
-                self.__all_plays.append(player_play)
-
-            self.__game_plays[player_id] = []
+                self.__game_plays[player_id] = []
 
         # print("")
 
