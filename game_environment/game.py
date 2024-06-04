@@ -518,6 +518,12 @@ class Non_playable_game(Game):
         # self._game_state.get_csv()
         # Database().store_to_database()
 
+    def score_get_total_scores(self) -> List[int]:
+        return self._score.get_total_scores()
+
+    def score_get_wins(self) -> List[int]:
+        return self._score.get_wins()
+
 
 class Playable_game(Game):
     def __init__(self, game_type: int, total_games: int, model_type: List[int], model_path: List[Optional[str]], num_players: int, single_mode: bool, rules: Dict, training: bool, csv_filename: str, human_player: bool, is_supervised_training: bool = False) -> None:

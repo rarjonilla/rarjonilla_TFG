@@ -901,12 +901,12 @@ episodes = 1000000
 a = None
 gc.collect()
 episodes = 2000000
-a = Reinforcement_training(2, episodes, 3, False, rules, [f'rl_models/tute_only_assist/3j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
+# a = Reinforcement_training(2, episodes, 3, False, rules, [f'rl_models/tute_only_assist/3j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
 a = None
 gc.collect()
 
 episodes = 1000000
-a = Reinforcement_training(2, episodes, 4, False, rules, [f'rl_models/tute_only_assist/4j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
+# a = Reinforcement_training(2, episodes, 4, False, rules, [f'rl_models/tute_only_assist/4j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
 a = None
 gc.collect()
 episodes = 2000000
