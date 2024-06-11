@@ -7,9 +7,12 @@ from game_environment.suit import Suit
 
 
 class Deck:
+    """Classe baralla"""
 
     def __init__(self) -> None:
+        # Llista de cartes a la baralla
         self.__deck_cards: List[Card] = []
+        # Carta de triomf
         self.__trump_card: Optional[Card] = None
         # Quan no queden images, el trump_card serà None i hem de seguir jugant sabent quin era el pal del triomf
         self.__trump_suit_id: int = 0
@@ -30,9 +33,9 @@ class Deck:
         idx_training_position = 0
         for i_suit in SUITS:
             suit = Suit(i_suit, SUITS[i_suit])
-            # Per a cada pal, es recorren el total de images del pal
+            # Per a cada pal, es recorren totes les cartes
             for key, card in CARDS.items():
-                # self.deck_cards.append(Card(i_suit, card.card_num, card.card_value, card.is_king, card.is_knight))
+                # S'afegeix la carta a la baralla
                 self.__deck_cards.append(Card(suit, card["card_num"], card["card_value"], card["training_pos"], idx_training_position))
                 idx_training_position += 1
 
@@ -128,13 +131,16 @@ class Deck:
             return card
 
     def extract_trump_card(self) -> None:
+        # S'extreu una carta de la baralla i es posa com a carta de triomf
         self.__trump_card = self.__deck_cards.pop()
         self.__trump_suit_id = self.__trump_card.get_suit_id()
 
     def get_deck_size(self) -> int:
+        # Cartes pendents per robar de la baralla
         return len(self.__deck_cards)
 
     def get_real_deck_size(self) -> int:
+        # Cartes pendents per robar de la baralla, incloent la carta de triomf
         ds: int = self.get_deck_size()
 
         if self.__trump_card is not None:
@@ -146,7 +152,6 @@ class Deck:
         return len(self.__deck_cards) > 0
 
     def has_trump(self) -> bool:
-        # print(self.__trump_card is not None)
         return self.__trump_card is not None
 
     def is_high_trump(self) -> bool:

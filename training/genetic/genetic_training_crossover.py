@@ -6,33 +6,31 @@ from typing import Tuple, List, Optional
 
 
 class Genetic_training_crossover:
+    """Classe de Funcions d'encreuament per Xarxa neuronal"""
     def __init__(self, crossover_ratio: float):
+        # Probabilitat d'encreuament
         self.__crossover_ratio: float = crossover_ratio
 
     def update_crossover_ratio(self, crossover_ratio: float):
         self.__crossover_ratio = crossover_ratio
 
-    # def crossover(self, parent_1_vectors: Tuple[List[float], List[float]], parent_2_vectors: Tuple[List[float], List[float]]) -> Tuple[Tuple[List[float], List[float]], Tuple[List[float], List[float]], Optional[str]]:
     def crossover(self, parent_1_vectors: Tuple[List[List[float]], List[List[float]]], parent_2_vectors: Tuple[List[List[float]], List[List[float]]]) -> Tuple[Tuple[List[List[float]], List[List[float]]], Tuple[List[List[float]], List[List[float]]], Optional[str]]:
         if random.random() <= self.__crossover_ratio:
             # LLista de funcions de crossover
             # crossovers = [self.__one_point_crossover, self.__multi_point_crossover, self.__uniform_crossover, self.__average_crossover_and_flat_crossover, self.__multivariate_crossover, self.__linear_recombination_crossover, self.__arithmetic_crossover]
             crossovers = [self.__one_point_crossover, self.__multi_point_crossover, self.__uniform_crossover, self.__average_crossover_and_flat_crossover, self.__multivariate_crossover, self.__arithmetic_crossover]
-            # crossovers = [self.__linear_recombination_crossover]
 
             # Selecció de la funció de crossover aleatòria
             crossover_func = random.choice(crossovers)
+
+            # Execució de la funció d'encreuament
             c1, c2 = crossover_func(parent_1_vectors, parent_2_vectors)
             return c1, c2, crossover_func.__name__
         else:
             # Es retornen còpies dels pares
             return deepcopy(parent_1_vectors), deepcopy(parent_2_vectors), None
 
-    def __select_vector(self, parent_vectors: Tuple[List[List[float]], List[List[float]]]) -> Tuple[List[float], List[float]]:
-        pass
-
     # Funcions de crossover
-    # def __one_point_crossover(self, parent_1_vectors: Tuple[List[float], List[float]], parent_2_vectors: Tuple[List[float], List[float]]) -> Tuple[Tuple[List[float], List[float]], Tuple[List[float], List[float]]]:
     def __one_point_crossover(self, parent_1_vectors: Tuple[List[List[float]], List[List[float]]], parent_2_vectors: Tuple[List[List[float]], List[List[float]]]) -> Tuple[Tuple[List[List[float]], List[List[float]]], Tuple[List[List[float]], List[List[float]]]]:
         # Capes per realitzar el crossover (les no seleccionades es passarà la capa sencera al fill 1 les del pare 1 i al fill 2 el del pare 2)
         total_selected_layers = random.randint(1, len(parent_1_vectors[0]))
@@ -91,7 +89,6 @@ class Genetic_training_crossover:
 
         return (child_1_weights, child_1_bias), (child_2_weights, child_2_bias)
 
-    # def __multi_point_crossover(self, parent_1_vectors: Tuple[List[float], List[float]], parent_2_vectors: Tuple[List[float], List[float]]) -> Tuple[ Tuple[List[float], List[float]], Tuple[List[float], List[float]]]:
     def __multi_point_crossover(self, parent_1_vectors: Tuple[List[List[float]], List[List[float]]], parent_2_vectors: Tuple[List[List[float]], List[List[float]]]) -> Tuple[ Tuple[List[List[float]], List[List[float]]], Tuple[List[List[float]], List[List[float]]]]:
         # Capes per realitzar el crossover (les no seleccionades es passarà la capa sencera al fill 1 les del pare 1 i al fill 2 el del pare 2)
         total_selected_layers = random.randint(1, len(parent_1_vectors[0]))
@@ -188,7 +185,6 @@ class Genetic_training_crossover:
 
         return (child_1_weights, child_1_bias), (child_2_weights, child_2_bias)
 
-    # def __uniform_crossover(self, parent_1_vectors: Tuple[List[float], List[float]], parent_2_vectors: Tuple[List[float], List[float]]) -> Tuple[ Tuple[List[float], List[float]], Tuple[List[float], List[float]]]:
     def __uniform_crossover(self, parent_1_vectors: Tuple[List[List[float]], List[List[float]]], parent_2_vectors: Tuple[List[List[float]], List[List[float]]]) -> Tuple[Tuple[List[List[float]], List[List[float]]], Tuple[List[List[float]], List[List[float]]]]:
         # Capes per realitzar el crossover (les no seleccionades es passarà la capa sencera al fill 1 les del pare 1 i al fill 2 el del pare 2)
         total_selected_layers = random.randint(1, len(parent_1_vectors[0]))
@@ -258,13 +254,11 @@ class Genetic_training_crossover:
         return (child_1_weights, child_1_bias), (child_2_weights, child_2_bias)
 
     # Aquests generen 1 cadascun, per tant, executo 2 crossover per obtenir els dos fills
-    # def __average_crossover_and_flat_crossover(self, parent_1_vectors: Tuple[List[float], List[float]], parent_2_vectors: Tuple[List[float], List[float]]) -> Tuple[ Tuple[List[float], List[float]], Tuple[List[float], List[float]]]:
     def __average_crossover_and_flat_crossover(self, parent_1_vectors: Tuple[List[List[float]], List[List[float]]], parent_2_vectors: Tuple[List[List[float]], List[List[float]]]) -> Tuple[Tuple[List[List[float]], List[List[float]]], Tuple[List[List[float]], List[List[float]]]]:
         child_1_weights, child_1_bias = self.__average_crossover(parent_1_vectors, parent_2_vectors)
         child_2_weights, child_2_bias = self.__flat_crossover(parent_1_vectors, parent_2_vectors)
         return (child_1_weights, child_1_bias), (child_2_weights, child_2_bias)
 
-    # def __average_crossover(self, parent_1_vectors: Tuple[List[float], List[float]], parent_2_vectors: Tuple[List[float], List[float]]) -> Tuple[List[float], List[float]]:
     def __average_crossover(self, parent_1_vectors: Tuple[List[List[float]], List[List[float]]], parent_2_vectors: Tuple[List[List[float]], List[List[float]]]) -> Tuple[List[List[float]], List[List[float]]]:
         child_weights: List[List[float]] = []
         child_bias: List[List[float]] = []
@@ -301,7 +295,6 @@ class Genetic_training_crossover:
 
         return child_weights, child_bias
 
-    # def __flat_crossover(self, parent_1_vectors: Tuple[List[float], List[float]], parent_2_vectors: Tuple[List[float], List[float]]) -> Tuple[List[float], List[float]]:
     def __flat_crossover(self, parent_1_vectors: Tuple[List[List[float]], List[List[float]]], parent_2_vectors: Tuple[List[List[float]], List[List[float]]]) -> Tuple[List[List[float]], List[List[float]]]:
         child_weights: List[List[float]] = []
         child_bias: List[List[float]] = []
@@ -337,7 +330,6 @@ class Genetic_training_crossover:
 
         return child_weights, child_bias
 
-    # def __multivariate_crossover(self, parent_1_vectors: Tuple[List[float], List[float]], parent_2_vectors: Tuple[List[float], List[float]]) -> Tuple[ Tuple[List[float], List[float]], Tuple[List[float], List[float]]]:
     def __multivariate_crossover(self, parent_1_vectors: Tuple[List[List[float]], List[List[float]]], parent_2_vectors: Tuple[List[List[float]], List[List[float]]]) -> Tuple[Tuple[List[List[float]], List[List[float]]], Tuple[List[List[float]], List[List[float]]]]:
         # Capes per realitzar el crossover (les no seleccionades es passarà la capa sencera al fill 1 les del pare 1 i al fill 2 el del pare 2)
         total_selected_layers = random.randint(1, len(parent_1_vectors[0]))
@@ -432,7 +424,6 @@ class Genetic_training_crossover:
 
         return (child_1_weights, child_1_bias), (child_2_weights, child_2_bias)
 
-    # def __linear_recombination_crossover(self, parent_1_vectors: Tuple[List[float], List[float]], parent_2_vectors: Tuple[List[float], List[float]]) -> Tuple[ Tuple[List[float], List[float]], Tuple[List[float], List[float]]]:
     def __linear_recombination_crossover(self, parent_1_vectors: Tuple[List[List[float]], List[List[float]]], parent_2_vectors: Tuple[List[List[float]], List[List[float]]]) -> Tuple[Tuple[List[List[float]], List[List[float]]], Tuple[List[List[float]], List[List[float]]]]:
         # Capes per realitzar el crossover (les no seleccionades es passarà la capa sencera al fill 1 les del pare 1 i al fill 2 el del pare 2)
         total_selected_layers = random.randint(1, len(parent_1_vectors[0]))
@@ -507,7 +498,6 @@ class Genetic_training_crossover:
 
         return (child_1_weights, child_1_bias), (child_2_weights, child_2_bias)
 
-    # def __arithmetic_crossover(self, parent_1_vectors: Tuple[List[float], List[float]], parent_2_vectors: Tuple[List[float], List[float]]) -> Tuple[ Tuple[List[float], List[float]], Tuple[List[float], List[float]]]:
     def __arithmetic_crossover(self, parent_1_vectors: Tuple[List[List[float]], List[List[float]]], parent_2_vectors: Tuple[List[List[float]], List[List[float]]]) -> Tuple[Tuple[List[List[float]], List[List[float]]], Tuple[List[List[float]], List[List[float]]]]:
         child_1_weights: List[List[float]] = []
         child_1_bias: List[List[float]] = []
@@ -544,8 +534,3 @@ class Genetic_training_crossover:
             # print("child_2_bias", child_2_bias)
 
         return (child_1_weights, child_1_bias), (child_2_weights, child_2_bias)
-
-    # Arithmetic crossover
-
-# Opcions 1 child:
-    # Discrete crossover (és com el uniform crossover pero generant nomes 1 fill)

@@ -6,19 +6,21 @@ from typing import Tuple, List, Optional, Dict
 
 
 class Genetic_training_crossover_rl:
+    """Classe de Funcions d'encreuament per RL"""
     def __init__(self, crossover_ratio: float):
+        # Probabilitat d'encreuament
         self.__crossover_ratio: float = crossover_ratio
 
     def update_crossover_ratio(self, crossover_ratio: float):
         self.__crossover_ratio = crossover_ratio
 
     def crossover(self, parent_1_params: Tuple[Dict, Dict, Dict, Dict], parent_2_params: Tuple[Dict, Dict, Dict, Dict]) -> Tuple[Tuple[Dict, Dict, Dict, Dict], Tuple[Dict, Dict, Dict, Dict], str]:
+        # S'executa l'encreuament si l'atzar ho vol
         if random.random() <= self.__crossover_ratio:
             # LLista de funcions de crossover
             crossovers = [self.__one_point_crossover, self.__multi_point_crossover, self.__uniform_crossover, self.__multivariate_crossover]
-            # crossovers = [self.__one_point_crossover, self.__multi_point_crossover]
-            # crossovers = [self.__linear_recombination_crossover]
 
+            # Es fa un merge dels diccionaris, mantenint els valors propis per a estats repetits
             q_p1, q_p2 = self.__merge_dicts(parent_1_params[0], parent_2_params[0])
             pairs_visited_p1, pairs_visited_p2 = self.__merge_dicts(parent_1_params[1], parent_2_params[1])
             policy_p1, policy_p2 = self.__merge_dicts(parent_1_params[2], parent_2_params[2])
@@ -26,6 +28,8 @@ class Genetic_training_crossover_rl:
 
             # Selecció de la funció de crossover aleatòria
             crossover_func = random.choice(crossovers)
+
+            # Execució de la funció d'encreuament
             c1, c2 = crossover_func((q_p1, pairs_visited_p1, policy_p1, actions_p1), (q_p2, pairs_visited_p2, policy_p2, actions_p2))
             return c1, c2, crossover_func.__name__
         else:
@@ -33,10 +37,12 @@ class Genetic_training_crossover_rl:
             return deepcopy(parent_1_params), deepcopy(parent_2_params), None
 
     def __sort_dict(self, d: Dict):
+        # ordenar diccionaris per clau d'estat
         sorted_items = sorted(d.items())
         return dict(sorted_items)
 
     def __merge_dicts(self, dict_1: Dict, dict_2: Dict):
+        # Merge dels diccionaris
         d_1 = {}
         d_2 = {}
 

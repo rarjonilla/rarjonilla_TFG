@@ -6,9 +6,7 @@ from uuid import uuid1, UUID
 
 from game_environment.player import Player
 from game_environment.deck import Deck
-# from xarxa_neuronal import XarxaNeuronal
 from game_environment.card import Card
-# from database import Database
 
 from constants import NUM_CARDS_BRISCA, NUM_CARDS_TUTE, SUITS
 
@@ -25,73 +23,89 @@ from training.reinforcement.monte_carlo_multiple_key import Monte_carlo_multiple
 
 
 class Game:
-    """
-    docstring de la classe game_environment
-    """
-    def __init__(self, game_type: int, total_games: int, model_type: List[int], model_path: List[str], num_players: int, single_mode: bool, rules: Dict, training: bool, csv_filename: str, rl_eps: float = 0.05, rl_eps_decrease: float = 1e-7, rl_gamma: float = 1.0, rl_only_one_agent: bool = False, is_supervised_training: bool = False) -> None:
-        self._total_games: int = total_games
+    """Classe Joc general"""
 
+    def __init__(self, game_type: int, total_games: int, model_type: List[int], model_path: List[str], num_players: int, single_mode: bool, rules: Dict, training: bool, csv_filename: str, rl_eps: float = 0.05, rl_eps_decrease: float = 1e-7, rl_gamma: float = 1.0, rl_only_one_agent: bool = False, is_supervised_training: bool = False) -> None:
+        # Total de partides a simular
+        self._total_games: int = total_games
+        # Tipus de joc (1-Brisca, 2- Tute)
         self.__game_type: int = game_type
+        # Llista dels models per a cada jugador (1-Random, 7- GA, 8-SL heuristic i normalitzat, 10-RL múltiples estats)
         self.__model_type: List[int] = model_type
+        # Llista dels path als models per a cada jugador (None- Random)
         self._model_path: List[str] = model_path
 
         # Llistat de jugadors
         self._players: List[Player] = []
+
+        # Número de jugadors
         self._num_players: int = num_players
+
+        # True- Es juga en solitari, False- Es juga en parelles
         self._single_mode: bool = single_mode
 
+        # Regles que s'aplicaran durant la partida
         self._rules: Dict = rules
 
-        # print(self.is_rule_active("only_assist"))
-        # print(self.is_rule_active("black_hand"))
-
-        # Resultats
+        # Màxima puntuació per si es guanya per caça del 3, mà negre o Tute de cavalls o reis
         max_score: int = 130 if self.is_rule_active('last_tens') else 120
+        # Puntuació dels jugadors durant la simulació
         self._score: Score = Score(num_players, single_mode, max_score)
 
         # Es creen totes les cartes
         self._deck: Deck = Deck()
 
+        # Indica el jugador que ha iniciat la partida
         self.__initial_player_id: int = -1
+        # Indica el jugador que ha guanyat l'última ronda
         self._last_round_winner_id: int = self.__initial_player_id
 
-        # Es crea la ronda i les rondes del joc
+        # Es crea la ronda inicial i un historic de rondes
         self._round: Round = Round(0, 0, False, rules, None)
         self._rounds: List[Round] = []
 
+        # Indica si algun jugador ha guanyat per tute de cavalls o reis
         self._tutes: List[int] = []
+        # Indica el jugador que ha guanyat per mà negre
         self._black_hand: int = -1
+        # Indica el jugador que ha guanyat per caça al 3
         self._hunt_the_three: int = -1
 
+        # Cartes que els jugadors tindran a la seva mà
         self._num_cards: int = NUM_CARDS_BRISCA if game_type == 1 else NUM_CARDS_TUTE
 
+        # Per Entrenament RL -> True, un únic agent apren de totes les jugades, False -> hi ha "n" agents, un per cada jugador
         self._rl_only_one_agent: bool = rl_only_one_agent
 
         # Training and AI
+        # Indica si s'està realitzant algun tipus d'entrenament
         self._training: bool = training
+        # Nom del fitxer CSV a emmagatzemar per la generació del conjunt de dades de la SL
         self._csv_filename: str = csv_filename
+        # Indica si es tracta d'un entrenament supervisat
         self._is_supervised_training: bool = is_supervised_training
-        self._game_state: Game_state = Game_state(self._is_brisca(), self._single_mode, self._num_cards,
-                                                  self._num_players, self._rules, self.__model_type, is_supervised_training)
+        # Estat del joc, serveix per generar i emmagatzemar l'estat del joc de cada torn i jugador
+        self._game_state: Game_state = Game_state(self._is_brisca(), self._single_mode, self._num_cards, self._num_players, self._rules, self.__model_type, is_supervised_training)
 
+        # Si es tracta d'un entrenament RL amb un unic agent, es crear l'agent per pasar-lo com a parametre als jugadors (tots tindran la mateixa referència)
         if self._rl_only_one_agent:
             if self.__model_type[0] == 9:
+                # RL amb un unic estat
                 self._rl_agent: Monte_carlo = Monte_carlo(rl_eps, rl_eps_decrease, rl_gamma, model_type[0], model_path[0])
             elif self.__model_type[0] == 10:
+                # RL amb múltiples estats
                 self._rl_agent: Monte_carlo_multiple_state = Monte_carlo_multiple_state(rl_eps, rl_eps_decrease, rl_gamma, model_type[0], model_path[0], False, self._training)
 
         # Es creen els jugadors
         for id_player in range(0, num_players):
-            # print(self.__model_path[id_player])
             if self._rl_only_one_agent:
                 player: Player = Player(id_player, self.__model_type[id_player], self._model_path[id_player], rules, None, None, None, self._rl_agent, self._training)
             else:
                 player: Player = Player(id_player, self.__model_type[id_player], self._model_path[id_player], rules, rl_eps, rl_eps_decrease, rl_gamma, None, self._training)
             self._players.append(player)
 
-        # self.__reset_players_seen_cards()
-
     def nullify_game(self):
+        # Nul·lificació de la classe (per alliberar espai entre diferents entrenaments)
         for player in self._players:
             player.del_model()
 
@@ -139,7 +153,9 @@ class Game:
 
     # Private functions
     def __give_cards_to_players(self) -> None:
+        # Es reparteix una carta a cada jugador
         for i in range(self._num_players):
+            # El primer que agafa és el guanyador de l'última ronda i se segueix en sentit horari
             player_id: int = i + self._last_round_winner_id
             player_id %= self._num_players
             player = self._players[player_id]
@@ -149,8 +165,7 @@ class Game:
 
             # Training and AI
             if not self._deck.has_remaining_cards() and not self._deck.has_trump():
-                # print("--------------------------------------")
-                # print("giving trump card!")
+                # S'afegeix a l'estat del joc la carta coneguda d'un rival quan aquest ha robat la carta de triomf
                 self._game_state.add_viewed_card(i, card)
 
     # TODO -> es pot eliminar
@@ -160,6 +175,7 @@ class Game:
 
     # Protected functions (Used in inheritance)
     def _game_results(self) -> None:
+        # Es calculen els resultats finals de la partida segons com s'hagi finalitzat
         if self.is_black_hand() and self.is_tute():
             self._score.set_winners_by_black_hand_and_tute(self._black_hand, self._tutes)
         elif self.is_black_hand():
@@ -171,10 +187,14 @@ class Game:
 
         if PRINT_CONSOLE:
             self._score.show_game_score()
+
+        # Es finalitza la puntuació final
         self._score.finalize_score()
 
         # Training
+        # S'indica a l'estat del joc la finalització de la partida per emmagatzemar les llistes de les jugades i resetejar-les
         self._game_state.finalize_game(self._score)
+
         if PRINT_CONSOLE:
             self._score.show_total_game_score()
 
@@ -184,6 +204,7 @@ class Game:
                     print("Player ", player.get_id(), " singed tute of " + SUITS[singed_tute_suits])
 
         # Training RL
+        # S'actualitza la política de l'agent RL (sí és únic només cal executar-la 1 cop, sinó cada jugador executa la seva)
         if self._training:
             if self._rl_only_one_agent:
                 if self._players[0].is_model_type_rl():
@@ -200,36 +221,37 @@ class Game:
         return self.__game_type == 1
 
     def _new_game(self) -> None:
-        # print("new game", self.__model_path[0], self.__model_path[1])
-        # Es creen totes les images
+        # Es crea la baralla
         self._deck = Deck()
 
+        # S'inicialitzen les variables
         self._black_hand = -1
         self._hunt_the_three = -1
 
+        # Comença la partida el jugador a l'esquerra del que l'ha començat amb anterioritat
         self.__initial_player_id += 1
         self.__initial_player_id %= self._num_players
         self._last_round_winner_id = self.__initial_player_id
 
-        round_uuid: UUID = uuid1()
         for player in self._players:
-            # Reiniciem les mans del jugador
-            player.init_hand(round_uuid)
+            # Reiniciem la mà del jugador
+            player.init_hand()
 
-            # Si el model es RL, s'ha de iniciar un nou episode
+            # Si el model es RL, s'ha de iniciar un nou episodi
             if player.is_model_type_rl():
                 player.rl_new_episode()
 
-        card: Optional[Card] = None
-
         # Training and AI
+        # S'inicialitiza una nova partida per els estats del joc
         self._game_state.new_game()
 
         # Repartim cartes a cada jugador (1 a cadascun fins a arribar a les necessàries)
         for _ in range(0, self._num_cards):
             self.__give_cards_to_players()
 
+        # S'extreu la carta de triomf
         self._deck.extract_trump_card()
+
         if PRINT_CONSOLE:
             print("trump card: " + str(self._deck.get_trump_card()))
 
@@ -237,18 +259,20 @@ class Game:
         trump_card = self._deck.get_trump_card()
         if trump_card is None:
             raise AssertionError("Trump card is None")
+
+        # S'indica la carta de triomf a l'estat del joc per aquesta partida
         self._game_state.change_trump_card(trump_card)
 
     def _next_round(self, first_round: bool = False) -> None:
         # Si la ronda es la primera no cal donar carta als jugadors
-        # print("deck size", self.deck.deck_size())
-        # Amb 3 jugadors es dona el cas que, la última carta (el triomf), no és de cap jugador
-        # Aquesta es podrà intercanviar  inclus a les últimes rondes, quan els jugadors ja no agafen cap carta més
+        # Amb 3 jugadors es dona el cas que, l'última carta (el triomf), no és de cap jugador
+        # Aquesta es podrà intercanviar inclús a les últimes rondes, quan els jugadors ja no agafen cap carta més
         # Amb la condició self.deck.deck_size() > self.num_players es comprova aquesta condició, sense afectar a la resta de modes, indiferentment del nombre de jugadors
         if not first_round and self._deck.has_remaining_cards():
             self.__give_cards_to_players()
 
         # Training and AI
+        # S'inicia nova ronda per els estats del joc
         self._game_state.new_round(first_round, self._deck.get_real_deck_size(), self._score.get_individual_scores())
 
         if PRINT_CONSOLE:
@@ -268,43 +292,42 @@ class Game:
 
     def _player_turn(self, player: Player) -> Tuple[int, Optional[Card]]:
         # Training and AI
-        # print(player.hand_get_cards_copy())
+        # S'indica nou torn als estats del joc
         self._game_state.new_turn(player.get_id(), player.hand_get_cards_copy())
-        # if player.get_id() == 0:
-          #   self._game_state.show_current()
 
+        # Aquests valors serveixen per comprovar quines són les cartes que el jugador pot jugar (a la Brisca és qualsevol, però al Tute està condicionat per les cartes que hi ha en joc)
         highest_suit_card: Optional[Card] = None if self._is_brisca() else self._round.highest_suit_card()
         deck_has_cards: bool = False if self._is_brisca() else self._deck.has_remaining_cards()
         highest_trump_played: Optional[Card] = None if self._is_brisca() else self._round.highest_trump_played()
 
+        # Es fa una còpia de les cartes que pot jugar (es modificarà més endavant i no volem que es modifiqui la mà original)
         copied_playable_hand: List[Card] = copy.deepcopy(player.hand_get_playable_cards(self._deck.get_trump_suit_id(), highest_suit_card, deck_has_cards, highest_trump_played))
 
+        # S'agafa l'estat del joc per aquest torn
         player_state: Optional[Player_state] = None
-        # print("*****************")
-        # print(player.is_model_type_random())
         if not player.is_model_type_random():
             player_state = self._game_state.get_player_state(player.get_id())
 
-        # print(player)
-        # print(self._deck.get_trump_card() is not None, self._deck.is_high_trump(), self._deck.get_trump_suit_id(), highest_suit_card, deck_has_cards, highest_trump_played, player_state)
+        # Es calcula l'acció que el jugador durà a terme
+        # 0 = canvi de carta, 1-8 = posició de la carta jugada, Carta que juga (ja s'ha eliminat de la seva mà). Si és None és que intercanvia la carta de triomf
         card_position, card_or_change = player.get_next_action(self._deck.get_trump_card() is not None, self._deck.is_high_trump(), self._deck.get_trump_suit_id(), highest_suit_card, deck_has_cards, highest_trump_played, player_state)
 
-        # 0 = canvi de carta, 1-5 = carta jugada
-
         if card_or_change is None:
-            # TODO s'haura d'emmagatzemar d'alguna manera
+            # Acció d'intercanvi de la carta de triomg
             if PRINT_CONSOLE:
                 print("Acció: intercanviar carta")
-            # card_to_change_position, card_to_change = player.hand.card_to_change(card_position, self.deck.is_high_trump(), self.deck.trump_card_suit())
-            card_to_change_position, card_to_change = player.hand_card_to_change(self._deck.is_high_trump(), self._deck.get_trump_suit_id())
 
+            # S'agafa la posició i carta de la seva mà
+            card_to_change_position, card_to_change = player.hand_card_to_change(self._deck.is_high_trump(), self._deck.get_trump_suit_id())
             card_position = card_to_change_position
 
+            # Es realitza l'intercanvi
             trump_card = self._deck.get_trump_card()
             if trump_card is None or card_to_change is None:
                 raise AssertionError("Card or Trump card is None")
             else:
                 # Training and AI
+                # S'indica carta coneguda del rival (la carta de triomf)
                 self._game_state.add_viewed_card(player.get_id(), trump_card)
 
                 if PRINT_CONSOLE:
@@ -312,43 +335,43 @@ class Game:
                     print("per")
                     print(trump_card)
 
+                # S'afegeix la carta de triomf a la mà del jugador
                 player.hand_change_card(card_to_change_position, trump_card)
 
+                # S'actualitza la carta de triomf
                 self._deck.change_trump_card(card_to_change)
 
                 if PRINT_CONSOLE:
                     player.show_hand()
 
-                # Comprovar mà negre
+                # Comprovar mà negre (el jugador pot guanyar amb aquest intercanvi)
                 if self.is_rule_active('black_hand') and player.hand_has_black_hand(self._deck.get_trump_suit_id()):
                     self._black_hand = player.get_id()
-
-                # for player_ in self.players:
-                #    player_.seen_card(card)
         else:
+            # Acció de jugar una carta
             self._round.played_card(card_or_change)
 
             # Training and AI
+            # S'elimina la carta de les vistes dels rivals (si es que estava visible) de l'estat del joc
             self._game_state.remove_viewed_card(player.get_id(), card_or_change)
+            # S'afegeix una carta jugada durant la partida a l'estat del joc
             self._game_state.add_played_card(card_or_change)
 
-            highest_suit_card: Optional[Card] = None if self._is_brisca() else self._round.highest_suit_card()
-            deck_has_cards: bool = False if self._is_brisca() else self._deck.has_remaining_cards()
-            highest_trump_played: Optional[Card] = None if self._is_brisca() else self._round.highest_trump_played()
-
+            # Es calcula l'heuristic per la SL de la jugada
             self._game_state.heuristics(player.get_id(), card_or_change, copied_playable_hand)
-
-            # self._game_state.add_current_to_round(player.get_id())
-            # self._game_state.new_turn(player.get_id(), player.hand_get_cards_copy())
 
         return card_position, card_or_change
 
     def _round_results(self) -> None:
+        # Càlcul del resultat de la ronda
         if not self.is_rule_active('black_hand') or not self.is_black_hand():
+            # No s'ha guanyat per mà negre
+            # es calcula el resultat i es retorna si el jugador que ha guanyat punts per cantar les 20 o les 40
             singed_tute: bool = self._round.calc_round_results()
+            # S'indica el guanyador de l'última ronda
             self._last_round_winner_id = self._round.get_round_winner()
 
-            # Training RL -> set reward and add memory
+            # Training RL -> Afegir recompensa i guardar a la memòria de l'agent
             if self._training:
                 for player in self._players:
                     if player.is_model_type_rl():
@@ -362,74 +385,89 @@ class Game:
 
             singed_tute_suit: int = 0
             if singed_tute:
+                # Si ha cantat, s'indica al jugador que ja no pot tornar a cantar d'aquest pal
                 singed_tute_suit = self._round.get_singed_suit()
                 self._players[self._last_round_winner_id].hand_add_singed_tute_suit(singed_tute_suit)
 
             if PRINT_CONSOLE:
                 self._round.show_round()
+
+            # S'afegeix la ronda a l'historial
             self._rounds.append(self._round)
+            # S'actualitza la puntuació de la partida
             self._score.add_score(self._last_round_winner_id, self._round.get_round_points())
+
             if PRINT_CONSOLE:
                 print("")
 
             # Training
+            # S'indica a l'estat del joc que ha finalitzat la ronda
             self._game_state.finalize_round(self._round)
 
 
 class Non_playable_game(Game):
+    """Classe Joc no jugable (simulacions)"""
     def __init__(self, game_type: int, total_games: int, model_type: List[int], model_path: List[Optional[str]], num_players: int, single_mode: bool, rules: Dict, training: bool, csv_filename: str, rl_eps: float = 0.05, rl_eps_decrease: float = 1e-7, rl_gamma: float = 1.0, rl_only_one_agent: bool = False, is_supervised_training: bool = False) -> None:
+        # Es crida el constructor general
         super().__init__(game_type, total_games, model_type, model_path, num_players, single_mode, rules, training, csv_filename, rl_eps, rl_eps_decrease, rl_gamma, rl_only_one_agent, is_supervised_training)
+        # Es comença la simulació
         self.__start_game()
 
     # Private functions
     def __next_round(self, first_round: bool = False) -> None:
+        # S'inicia la següent ronda
         self._next_round(first_round)
 
         if not self.is_tute() and not self.is_black_hand():
+            # No s'ha guanyat per Tute ni per mà negra
+            # Variable per emmagatzemar els cants dels jugadors a l'inici de la ronda
             sing_declarations: Optional[List[Optional[int]]] = None if self._is_brisca() else []
 
             if not self._is_brisca() and sing_declarations is not None:
-                # Calculem els cantics de Tute de cada jugador en ordre de torn
-                # player_turn = self.last_round_winner_id
-                # for i in range(self.num_players):
+                # Algú pot cantar
+                # Calculem els cantics de Tute de cada jugador
                 for player in self._players:
-                    # player: Player = self.players[player_turn]
-
+                    # S'agafa l'estat del joc del torn
                     player_state = self._game_state.get_player_state(player.get_id())
                     if player_state is None:
+                        # És la primera ronda de la partida, encara no s'ha inicialitzat el nou torn de l'estat del joc
                         self._game_state.new_turn(player.get_id(), player.hand_get_cards_copy())
+                        # S'agafa l'estat del joc del torn
                         player_state = self._game_state.get_player_state(player.get_id())
 
+                    # Es calcula l'acció de triar cant per el jugador
                     sing_declaration: Optional[int] = player.get_next_action_sing_declarations(self._deck.get_trump_suit_id(), player_state)
                     sing_declarations.append(sing_declaration)
 
                     # Training and AI
                     if sing_declaration is not None:
+                        # S'inicialitza un nou torn i s'indica l'acció triada (quin cant vol fer dels que pot)
                         self._game_state.new_turn(player.get_id(), player.hand_get_cards_copy())
                         self._game_state.set_action(player.get_id(), sing_declaration, 2)
                         self._game_state.add_current_to_round(player.get_id())
+                        # S'inicialitza un nou torn
                         self._game_state.new_turn(player.get_id(), player.hand_get_cards_copy())
 
+                        # S'agafen les cartes del cant per afegir-les a les cartes conegudes del rival a l'estat del joc
                         sing_cards_pos: List[int] = player.hand_get_sing_cards_position(sing_declaration)
                         for sing_card_pos in sing_cards_pos:
                             card_pos, card = player.hand_get_card_in_position_no_remove(sing_card_pos)
                             self._game_state.add_viewed_card(player.get_id(), card)
 
-                    # player_turn += 1
-                    # player_turn %= self.num_players
-
             # Training and AI
+            # S'indica a l'estat del joc els cants dels jugadors
             self._game_state.set_sing_declarations(sing_declarations)
 
+            # S'inicialitza una nova ronda
             self._round: Round = Round(self._last_round_winner_id, self._deck.get_trump_suit_id(), self._players[0].hand_has_one_left_card(), self._rules, sing_declarations)
 
-            # for player in self.players:
             player_turn = self._last_round_winner_id
             for i in range(self._num_players):
+                # Es realitza el torn dels jugadors en ordre
                 player = self._players[player_turn]
                 self.__player_turn(player)
 
-                # Ha aconseguit mà negre fent un intercanvi
+                # Ha aconseguit mà negra fent un intercanvi
                 if self._black_hand != -1:
                     break
                 else:
@@ -437,49 +475,57 @@ class Non_playable_game(Game):
                     player_turn %= self._num_players
 
             if not self.is_black_hand():
-                # if self.is_rule_active('hunt_the_three') and self._num_players == 2 and not self.is_black_hand():
+                # Ningú ha guanyat per mà negra
                 if self.is_rule_active('hunt_the_three') and self._num_players == 2:
+                    # Es comprova si algú ha caçat el 3
                     self._hunt_the_three = self._round.hunt_the_three(not self._players[0].hand_has_cards())
 
+                # Es calcula el resultat de la ronda
                 self._round_results()
 
         if not self._has_ended_game() and not self.is_tute() and not self.is_black_hand() and not self.is_hunt_the_three():
+            # Si no ha finalitzat el joc, es comença una ronda nova
             self.__next_round(first_round=False)
 
     def __player_turn(self, player: Player) -> Tuple[int, Optional[Card]]:
+        # Es calcula el torn del jugador
         card_position, card_or_change = self._player_turn(player)
 
         # Training and AI
         if card_or_change is not None:
             # Accions -> 0 = intercanvi, 1=carta posicio 0, ...
-            # self._game_state.set_action(player.get_id(), card_position + 1)
             # type -> 0=canvi, 1=carta, 2=cant
+            # S'indica a l'estat del joc l'acció del jugador
             self._game_state.set_action(player.get_id(), card_or_change.get_training_idx(), 1)
         else:
+            # S'indica a l'estat del joc l'acció d'intercanvi
             self._game_state.set_action(player.get_id(), 0, 0)
 
         # Training and AI
+        # S'afegeix l'estat i acció a la llista del jugador
         self._game_state.add_current_to_round(player.get_id())
 
         if card_or_change is None and (not self.is_rule_active('black_hand') or not player.hand_has_black_hand(self._deck.get_trump_suit_id())):
+            # Si s'ha fet intercanvi de carta i no guanya per mà negra, ha de seguir jugant el mateix jugador
             self.__player_turn(player)
 
         return card_position, card_or_change
 
     def __start_game(self) -> None:
+        # Inici de les simulacions
         game_num: int = 1
 
-        # print("simulation start", self._model_path[0], self._model_path[1])
         for game_num in tqdm(range(self._total_games)):
-        # while game_num <= self._total_games:
+            # inicialització de la partida
             self._score.reset_last_winners()
             self._new_game()
             self.__next_round(first_round=True)
             self._game_results()
 
             # Training RL
-            # Es guarda el model de RL cada 1000 simulacions
+            # Es guarda el model de RL cada X simulacions
             if self._training and game_num % RL_SAVE_AFTER_X_EPISODES == 0 and game_num != self._total_games and game_num != 0:
+                # Es guarda només un cop si és un unic agent, o es guarda per a cada jugador
                 if self._rl_only_one_agent:
                     self._rl_agent.save_model()
                     print(self._model_path[0], " saved game ", game_num)
@@ -490,21 +536,22 @@ class Non_playable_game(Game):
                             print(self._model_path[player.get_id()], " saved game ", game_num)
 
             game_num += 1
+
             if PRINT_CONSOLE:
                 print("game_environment ", game_num, " of ", self._total_games, end="\r")
 
-        # if PRINT_CONSOLE:
-        # print("simulation end", self._model_path[0], self._model_path[1])
+        # Es mostra el resultat de les simulacions
         self._score.show_total_game_score()
 
-        # Training
-        # Emmagatzemar csv amb totes les dades
+        # Training SL
+        # Emmagatzemar csv amb totes les dades (conjunt per la SL)
         if self._training and self._csv_filename is not None:
             self._game_state.save_csv(self._csv_filename)
 
         # Training RL
-        # Es guarda el model de RL al finalitzar
+        # Es guarda el model de RL al finalitzar la simulació
         if self._training:
+            # Es guarda només un cop si és un unic agent, o es guarda per a cada jugador
             if self._rl_only_one_agent:
                 self._rl_agent.save_model()
                 print(self._model_path[0], " saved game ", game_num)
@@ -514,10 +561,6 @@ class Non_playable_game(Game):
                         player.rl_save_model()
                         print(self._model_path[player.get_id()], " saved")
 
-        # Training and AI
-        # self._game_state.get_csv()
-        # Database().store_to_database()
-
     def score_get_total_scores(self) -> List[int]:
         return self._score.get_total_scores()
 
@@ -526,9 +569,12 @@ class Non_playable_game(Game):
 
 
 class Playable_game(Game):
+    """Classe del joc (GUI)"""
     def __init__(self, game_type: int, total_games: int, model_type: List[int], model_path: List[Optional[str]], num_players: int, single_mode: bool, rules: Dict, training: bool, csv_filename: str, human_player: bool, is_supervised_training: bool = False) -> None:
+        # Es crida el constructor del joc general
         super().__init__(game_type, total_games, model_type, model_path, num_players, single_mode, rules, training, csv_filename, is_supervised_training=is_supervised_training)
 
+        # Es guarda si el jugador 0 és un humà
         self.__human_player = human_player
 
     # Getters i Setters
@@ -573,8 +619,10 @@ class Playable_game(Game):
 
     def finalize_round(self) -> None:
         if self.is_rule_active('hunt_the_three') and self._num_players == 2 and not self.is_black_hand():
+            # Es comprova si s'ha caçat el 3
             self._hunt_the_three = self._round.hunt_the_three(not self._players[0].hand_has_cards())
 
+        # Es calcula el resultat de la ronda
         self._round_results()
 
     def is_brisca(self) -> bool:
@@ -584,46 +632,44 @@ class Playable_game(Game):
         self._new_game()
 
     def next_round(self, first_round: bool = False) -> None:
+        # Inicialització d'una nova ronda
         self._next_round(first_round)
 
         if not self.is_tute() and not self.is_black_hand():
+            # Ningú guanya per Tute ni per mà negra
             sing_declarations: Optional[List[Optional[int]]] = None if self.is_brisca() else []
 
             if not self.is_brisca() and sing_declarations is not None:
-                # Calculem els cantics de Tute de cada jugador en ordre de torn
-                # player_turn = self.last_round_winner_id
-                # for i in range(self.num_players):
+                # Algú pot cantar
+                # Calculem els cantics de Tute de cada jugador
                 for player in self._players:
-                    # player: Player = self.players[player_turn]
+                    # Només si és un jugador no humà
                     if player.get_id() != 0 or not self.__human_player:
                         player_state: Optional[Player_state] = None
-                        # print("*****************")
-                        # print(player.is_model_type_random())
                         if not player.is_model_type_random():
+                            # S'agafa l'estat del joc
                             player_state = self._game_state.get_player_state(player.get_id())
 
+                        # Es calcula l'acció de cant
                         sing_declaration: Optional[int] = player.get_next_action_sing_declarations(self._deck.get_trump_suit_id(), player_state)
                         sing_declarations.append(sing_declaration)
                     else:
                         # Cas del jugador humà
-                        # Automatic si en té només 1 o te "les 40")
-                        # Haura de triar en cas de tenir 2 "les 20"
-
-                        # print("***********************")
-                        # sing_suits_ids: List[int] = player.hand_get_singed_suits()
+                        # Automatic si en té només 1 o té "les 40")
+                        # Haurà de triar un dels cants en cas de diversos "les 20"
                         sing_suits_ids: List[int] = player.hand_sing_suits_in_hand()
 
-                    # print(sing_suits_ids)
                         if self._deck.get_trump_suit_id() in sing_suits_ids:
                             # Si el jugador té les 40, se li escollirà automàticament
                             sing_declarations.append(self._deck.get_trump_suit_id())
                         elif len(sing_suits_ids) == 1:
-                            # Si el jugador només té una cantada, se li escollirà automàticament
+                            # Si el jugador només té un cant, se li escollirà automàticament
                             sing_declarations.append(sing_suits_ids[0])
                         else:
                             # Si en te 2 haurà de triar amb els botons
                             sing_declarations.append(None)
 
+            # S'inicialitza la ronda
             self._round: Round = Round(self._last_round_winner_id, self._deck.get_trump_suit_id(), self._players[0].hand_has_one_left_card(), self._rules, sing_declarations)
 
     def player_turn(self, player: Player) -> Tuple[int, Optional[Card]]:
@@ -662,11 +708,6 @@ class Playable_game(Game):
         self._game_state.change_trump_card(card)
 
     def game_state_heuristics(self, player_id: int, played_card: Card, playable_hand: List[Card]) -> None:
-        # highest_suit_card: Optional[Card] = None if self._is_brisca() else self._round.highest_suit_card()
-        # deck_has_cards: bool = False if self._is_brisca() else self._deck.has_remaining_cards()
-        # highest_trump_played: Optional[Card] = None if self._is_brisca() else self._round.highest_trump_played()
-
-        # self._game_state.heuristics(player_id, played_card, self.get_player_by_position(player_id).hand_get_playable_cards(self._deck.get_trump_suit_id(), highest_suit_card, deck_has_cards, highest_trump_played))
         self._game_state.heuristics(player_id, played_card, playable_hand)
 
     def game_state_new_turn(self, player_id: int) -> None:
@@ -679,6 +720,7 @@ class Playable_game(Game):
         self._game_state.set_action(player_id, action, type)
 
     def game_state_set_sing_declarations(self) -> None:
+        # S'indica les cartes conegudes corresponents als cants dels jugador a l'estat del joc
         sing_declarations = self.round_get_sing_declarations()
         self._game_state.set_sing_declarations(sing_declarations)
 
@@ -693,6 +735,7 @@ class Playable_game(Game):
 
     # Player Getters
     def player_hand_get_playable_cards(self, player_id: int) -> List[Card]:
+        # Es retorna les cartes jugables del jugador
         highest_suit_card: Optional[Card] = None if self._is_brisca() else self._round.highest_suit_card()
         deck_has_cards: bool = False if self._is_brisca() else self._deck.has_remaining_cards()
         highest_trump_played: Optional[Card] = None if self._is_brisca() else self._round.highest_trump_played()

@@ -6,62 +6,57 @@ import numpy as np
 from collections import Counter
 
 
-
 class Monte_carlo_multiple_state:
+    """Classe Monte Carlo - múltiples estats"""
 
     def __init__(self, eps: float, eps_decrease: float, gamma: float, model_type: int, model_path: str, is_brisca: bool, is_training: bool = False) -> None:
+        # Informació dels models
         self.__model_type: int = model_type
         self.__model_path: str = model_path
+
+        # Informació de la partida
         self.__is_brisca = is_brisca
+
+        # Entrenament o simulació
         self.__is_training = is_training
 
         # Probabilitat d'exploració
-        # self.__eps: float = 0.05
         self.__eps: float = eps
+        # Decreixement d'exploració
         self.__eps_decrease: float = eps_decrease
 
-        # Valor de Discount (1 = undiscount)
-        # self.__gamma: float = 1.0
+        # Valor de descompte
         self.__gamma: float = gamma
 
         # Valor esperat de les accions (Agent estimated future reward)
-        # self.__q: Dict = {}
         self.__q_pairs_visited: Dict = {}
 
-        # Llista de possibles accions
+        # Llista de possibles accions per cada jugador (això permet entrenar un únic agent des de tots els punts de vista)
         self.__action_space_p1: List[List[int]] = []
         self.__action_space_p2: List[List[int]] = []
         self.__action_space_p3: List[List[int]] = []
         self.__action_space_p4: List[List[int]] = []
-        # self.__actions: Dict = {}
-
-        # Diccionari que conté els returns (G) de cada estat
-        # self.__returns: Dict = {}
-
-        # Diccionari que conté les vegades que s'ha visitat un estat i acció concret
-        # self.__pairs_visited: Dict = {}
 
         # La política és l'estratègia de l'agent
-        # self.__policy: Dict = {}
         self.__policy: Dict = {}
 
-        # Llista que conte els estats, accions i returns (G) al llarg de la partida
+        # Llista que conte els estats, accions i returns (G) al llarg de la partida per cada jugador
         self.__states_actions_returns_p1: List[Tuple[int, int, float]] = []
         self.__states_actions_returns_p2: List[Tuple[int, int, float]] = []
         self.__states_actions_returns_p3: List[Tuple[int, int, float]] = []
         self.__states_actions_returns_p4: List[Tuple[int, int, float]] = []
 
-        # Llista que conte els estats, accions i reward de cada ronda al llarg de la partida# Llista que conte els estats, accions i reward de cada ronda al llarg de la partida
+        # Llista que conte els estats, accions i reward de cada ronda al llarg de la partida# Llista que conte els estats, accions i reward de cada ronda al llarg de la partida per cada jugador
         self.__memories_p1: List[Tuple[List[int], int, int]] = []
         self.__memories_p2: List[Tuple[List[int], int, int]] = []
         self.__memories_p3: List[Tuple[List[int], int, int]] = []
         self.__memories_p4: List[Tuple[List[int], int, int]] = []
 
-        # self.__last_memory: Tuple[int, int, int] = (0, 0, 0)
-        # Tenim diferents estats:
+        # Tenim diferents estats per cada jugador:
         #  - estat carta de triomf
         #  - estat cartes jugades
         #  - estat cartes a la mà
+        #  - estat cants (Tute)
         #  - estat cartes vistes
         #  - regles
         self.__state_p1: List[int] = 0
@@ -69,11 +64,13 @@ class Monte_carlo_multiple_state:
         self.__state_p3: List[int] = 0
         self.__state_p4: List[int] = 0
 
+        # Recompensa actual per cada jugador
         self.__reward_p1: int = 0
         self.__reward_p2: int = 0
         self.__reward_p3: int = 0
         self.__reward_p4: int = 0
 
+        # Acció actual per cada jugador
         self.__action_p1: int = 0
         self.__action_p2: int = 0
         self.__action_p3: int = 0
@@ -82,10 +79,6 @@ class Monte_carlo_multiple_state:
         self.load_model()
 
     def del_model(self):
-        # self.__q = None
-        # self.__pairs_visited = None
-        # self.__policy = None
-        # self.__actions = None
         self.__q_pairs_visited = None
         self.__policy = None
 
@@ -99,7 +92,7 @@ class Monte_carlo_multiple_state:
         self.__memories_p4 = None
 
     def load_model(self) -> None:
-        # Comprovem si ja existeix
+        # Comprovem si ja existeix l'arxiu (s'ha guardat almenys un cop) per carregar els diccionaris i seguir l'entrenament
         if os.path.exists(self.__model_path + "/policy.pkl"):
             if self.__is_training:
                 with open(self.__model_path + "/q_pv.pkl", 'rb') as q_pv_file:
@@ -113,9 +106,6 @@ class Monte_carlo_multiple_state:
                 self.__eps = info["eps"]
                 self.__eps_decrease = info["eps_decrease"]
                 self.__gamma = info["gamma"]
-
-                print(self.__eps)
-                print("mc multiple!")
 
     def save_model(self) -> None:
         if not os.path.exists(self.__model_path):
@@ -138,6 +128,7 @@ class Monte_carlo_multiple_state:
             pickle.dump(info, info_file)
 
     def add_memory(self, player_id: int):
+        # Afegir memòria a la llista corresponent
         if player_id == 0:
             self.__memories_p1.append((self.__state_p1, self.__action_p1, self.__reward_p1, deepcopy(self.__action_space_p1)))
         elif player_id == 1:
@@ -148,6 +139,7 @@ class Monte_carlo_multiple_state:
             self.__memories_p4.append((self.__state_p4, self.__action_p4, self.__reward_p4, deepcopy(self.__action_space_p4)))
 
     def set_reward(self, reward: int, player_id: int):
+        # S'indica la recompensa rebuda
         if player_id == 0:
             self.__reward_p1 = reward
         elif player_id == 1:
@@ -158,6 +150,7 @@ class Monte_carlo_multiple_state:
             self.__reward_p4 = reward
 
     def set_state(self, state: List[int], player_id: int):
+        # S'indica l'estat actual
         if player_id == 0:
             self.__state_p1 = state
         elif player_id == 1:
@@ -168,7 +161,7 @@ class Monte_carlo_multiple_state:
             self.__state_p4 = state
 
     def choose_action_from_policy(self, player_id: int) -> int:
-        # Es tria u na acció del policy (si no existeix es tria aleatoriament)
+        # Es tria una acció del policy (si no existeix es tria aleatoriament)
         state = self.__state_p1
 
         if player_id == 1:
@@ -179,7 +172,7 @@ class Monte_carlo_multiple_state:
             state = self.__state_p4
 
         if state in self.__policy:
-            # TODO -> haig de triar tenint en compte les accions disponibles
+            # L'acció existeix a la política
             if player_id == 0:
                 self.__action_p1 = self.__policy[state]
             elif player_id == 1:
@@ -188,17 +181,10 @@ class Monte_carlo_multiple_state:
                 self.__action_p3 = self.__policy[state]
             elif player_id == 3:
                 self.__action_p4 = self.__policy[state]
-
-            # if self.__action not in self.__action_space:
-            # print("!!!!!")
-            # Obtener la representación binaria como cadena de caracteres y eliminar el prefijo '0b'
-            # cadena_binaria = bin(self.__state)[2:]
-
-            # Convertir la cadena binaria a una lista de bits
-            # lista_binaria = [int(bit) for bit in cadena_binaria]
-            # print("Lista binaria:", lista_binaria)
         else:
+            # L'acció no existeix a la política
             if self.__is_training:
+                # Si és entrenament es tria una a l'atzar
                 if player_id == 0:
                     self.__action_p1 = np.random.choice(self.__action_space_p1)
                 elif player_id == 1:
@@ -208,13 +194,7 @@ class Monte_carlo_multiple_state:
                 elif player_id == 3:
                     self.__action_p4 = np.random.choice(self.__action_space_p4)
             else:
-                # Tenim diferents estats:
-                #  - estat carta de triomf
-                #  - estat cartes jugades
-                #  - estat cartes a la mà
-                #  - estat de cants (Tute)
-                #  - estat cartes vistes
-                #  - estat regles
+                # Si és simulació es fa una abstracció de l'estat
 
                 if player_id == 0:
                     trump_suit = self.__state_p1[0]
@@ -252,7 +232,7 @@ class Monte_carlo_multiple_state:
                 if not self.__is_brisca:
                     # Buscarem si hem vist situacions semblants per no donar una acció aleatòria
                     # Es prova amb qualsevol carta de triomf del pal corresponent (s'elimina el valor de la carta)
-                    similar_keys = {key for key in self.__policy.keys() if trump_suit == key[0] and played_cards_state == key[1] and hand_cards_state == key[2] and singed_state == key[3] and viewed_cards_state == key[4] and rules_state == key[5]}
+                    # similar_keys = {key for key in self.__policy.keys() if trump_suit == key[0] and played_cards_state == key[1] and hand_cards_state == key[2] and singed_state == key[3] and viewed_cards_state == key[4] and rules_state == key[5]}
                     # print("choose 0")
 
                     #                     if len(similar_keys) == 0:
@@ -285,10 +265,10 @@ class Monte_carlo_multiple_state:
                     #                         similar_keys = {key for key in self.__policy.keys() if trump_suit == key[0] and played_cards_state == key[1] and hand_cards_state == key[2] and rules_state == key[5]}
                     #                         # print("choose 6")
 
-                    if len(similar_keys) == 0:
-                        # Es treuen els cants, les cartes vistes, regles i el valor de la carta de triomf
-                        similar_keys = {key for key in self.__policy.keys() if trump_suit == key[0] and played_cards_state == key[1] and hand_cards_state == key[2]}
-                        # print("choose 7")
+                    # if len(similar_keys) == 0:
+                    # Es treuen els cants, les cartes vistes, regles i el valor de la carta de triomf
+                    similar_keys = {key for key in self.__policy.keys() if trump_suit == key[0] and played_cards_state == key[1] and hand_cards_state == key[2]}
+                    # print("choose 7")
 
                     if len(similar_keys) == 0:
                         print("Random")
@@ -306,9 +286,6 @@ class Monte_carlo_multiple_state:
                         value_counter = Counter(values)
                         max_value, count_value = value_counter.most_common(1)[0]
 
-                        # Imprimir el resultado
-                        print("Action: ", max_value)
-
                         if player_id == 0:
                             self.__action_p1 = max_value
                         elif player_id == 1:
@@ -319,7 +296,6 @@ class Monte_carlo_multiple_state:
                             self.__action_p4 = max_value
                 else:
                     # Buscarem si hem vist situacions semblants per no donar una acció aleatòria (per exemple, sense cartes vistes)
-
                     trump_suit = self.__state_p1[0]
                     # trump_card = self.__state_p1[1]
                     played_cards_state = self.__state_p1[1]
@@ -329,7 +305,7 @@ class Monte_carlo_multiple_state:
                     rules_state = self.__state_p1[5]
 
                     # Es treu el valor de la carta de triomf
-                    similar_keys = {key for key in self.__policy.keys() if trump_suit == key[0] and played_cards_state == key[1] and hand_cards_state == key[2] and viewed_cards_state == key[4] and rules_state == key[5]}
+                    # similar_keys = {key for key in self.__policy.keys() if trump_suit == key[0] and played_cards_state == key[1] and hand_cards_state == key[2] and viewed_cards_state == key[4] and rules_state == key[5]}
                     # print("choose 0")
 
                     #                     if len(similar_keys) == 0:
@@ -342,10 +318,10 @@ class Monte_carlo_multiple_state:
                     #                         similar_keys = {key for key in self.__policy.keys() if trump_suit == key[0] and played_cards_state == key[1] and hand_cards_state == key[2] and rules_state == key[5]}
                     #                         print("choose 2")
 
-                    if len(similar_keys) == 0:
-                        # Es treuen les cartes vistes, les regles i el valor de la carta de triomf
-                        similar_keys = {key for key in self.__policy.keys() if trump_suit == key[0] and played_cards_state == key[1] and hand_cards_state == key[2]}
-                        print("choose 3")
+                    # if len(similar_keys) == 0:
+                    # Es treuen les cartes vistes, les regles i el valor de la carta de triomf
+                    similar_keys = {key for key in self.__policy.keys() if trump_suit == key[0] and played_cards_state == key[1] and hand_cards_state == key[2]}
+                    # print("choose 3")
 
                     if len(similar_keys) == 0:
                         # print("Random")
@@ -363,8 +339,6 @@ class Monte_carlo_multiple_state:
                         value_counter = Counter(values)
                         max_value, count_value = value_counter.most_common(1)[0]
 
-                        # Imprimir el resultado
-                        # print("Action: ", max_value)
                         if player_id == 0:
                             self.__action_p1 = max_value
                         elif player_id == 1:
@@ -384,6 +358,7 @@ class Monte_carlo_multiple_state:
             return self.__action_p4
 
     def new_episode(self):
+        # Iniciar nou episodi
         self.__states_actions_returns_p1 = []
         self.__states_actions_returns_p2 = []
         self.__states_actions_returns_p3 = []
@@ -394,29 +369,18 @@ class Monte_carlo_multiple_state:
         self.__memories_p4 = []
 
     def set_action_space(self, action_space, player_id: int):
+        # S'indica les possibles accions que es poden realitzar
         if player_id == 0:
             self.__action_space_p1 = action_space
-            # if self.__state_p1 not in self.__policy_actions:
-            #     self.__policy_actions[self.__state_p1] = {}
-            #    self.__policy_actions[self.__state_p1]["a"] = action_space
         elif player_id == 1:
             self.__action_space_p2 = action_space
-            # if self.__state_p2 not in self.__policy_actions:
-            #     self.__policy_actions[self.__state_p2] = {}
-            #     self.__policy_actions[self.__state_p2]["a"] = action_space
         elif player_id == 2:
             self.__action_space_p3 = action_space
-            # if self.__state_p3 not in self.__policy_actions:
-            #     self.__policy_actions[self.__state_p3] = {}
-            #     self.__policy_actions[self.__state_p3]["a"] = action_space
         elif player_id == 3:
             self.__action_space_p4 = action_space
-            # if self.__state_p4 not in self.__policy_actions:
-            #     self.__policy_actions[self.__state_p4] = {}
-            #     self.__policy_actions[self.__state_p4]["a"] = action_space
 
     def __decrease_eps(self):
-        # A cada partida que passa, la taxa d'exploració va perdent força
+        # A cada episodi que passa, la taxa d'exploració va perdent força
         self.__eps -= self.__eps_decrease if self.__eps - self.__eps_decrease > 0 else 0
 
     def __calculate_returns(self):
@@ -425,6 +389,7 @@ class Monte_carlo_multiple_state:
         last = True
         state = None
 
+        # TODO - Es pot crear una funció, a la qual se li passa la memòria, que faci el càlcul i retorni la llista en comptes de repetir el codi per cadascun
         # Es recorre la memoria a la inversa (del final a l'inici)
         for state, action, reward, available_actions in reversed(self.__memories_p1):
             # L'acció final no s'afegeix a la llista, encara s'ha de calcular
@@ -436,6 +401,7 @@ class Monte_carlo_multiple_state:
 
             g = self.__gamma * g + reward
 
+        # Falta afegir la primera (l'última que es calcula)
         if state is not None:
             self.__states_actions_returns_p1.append((state, action, g, available_actions))
 
@@ -453,6 +419,7 @@ class Monte_carlo_multiple_state:
 
             g = self.__gamma * g + reward
 
+        # Falta afegir la primera (l'última que es calcula)
         if state is not None:
             self.__states_actions_returns_p2.append((state, action, g, available_actions))
 
@@ -470,6 +437,7 @@ class Monte_carlo_multiple_state:
 
             g = self.__gamma * g + reward
 
+        # Falta afegir la primera (l'última que es calcula)
         if state is not None:
             self.__states_actions_returns_p3.append((state, action, g, available_actions))
 
@@ -487,6 +455,7 @@ class Monte_carlo_multiple_state:
 
             g = self.__gamma * g + reward
 
+        # Falta afegir la primera (l'última que es calcula)
         if state is not None:
             self.__states_actions_returns_p4.append((state, action, g, available_actions))
 
@@ -497,9 +466,10 @@ class Monte_carlo_multiple_state:
         # Llista per guardar els espais i accions vistes a la partida
         states_actions_visited = []
 
+        # Parell (estat - acció)
         sa = (state, action)
 
-        # En principi mai es repeteix. Estem parlant d'una mateixa partida
+        # TODO - En principi mai es repeteix un mateix estat durant el mateix episodi. Estem parlant d'una mateixa partida. Es podria treure aquesta condició i hauria de funcionar igual
         if sa not in states_actions_visited:
             # Si existeix l'actualitzo, sino el creo a 1
             if sa in self.__q_pairs_visited:
@@ -508,51 +478,52 @@ class Monte_carlo_multiple_state:
                 self.__q_pairs_visited[sa] = {}
                 self.__q_pairs_visited[sa]["pv"] = 1
 
-            # incremental implementation -> amb això s'obté la mitjana dels returns per a un estat concret
-            #   sense haver de calcular cada cop la mitjana amb tots els results anteriors.
+            # incremental implementation -> amb això s'obté la mitjana dels returns per a un estat concret sense haver de calcular cada cop la mitjana amb tots els results anteriors.
             # https://www.analyticsvidhya.com/blog/2018/11/reinforcement-learning-introduction-monte-carlo-learning-openai-gym/
             # Every visit monte carlo
-
             # new estimate = 1 / N * [sample - old estimate]
             # Es calcula la nova estimació per aquest parell (estat - acció)
-            # if sa in self.__returns:
             if sa in self.__q_pairs_visited and "q" in self.__q_pairs_visited[sa]:
-                # self.__returns[sa] += (1 / self.__pairs_visited[sa]) * (g - self.__returns[sa])
-                self.__q_pairs_visited[sa]["q"] += (1 / self.__q_pairs_visited[sa]["pv"]) * (
-                            g - self.__q_pairs_visited[sa]["q"])
+                self.__q_pairs_visited[sa]["q"] += (1 / self.__q_pairs_visited[sa]["pv"]) * (g - self.__q_pairs_visited[sa]["q"])
             else:
-                # self.__returns[sa] = (1 / self.__pairs_visited[sa]) * g
                 self.__q_pairs_visited[sa]["q"] = (1 / self.__q_pairs_visited[sa]["pv"]) * g
-
-            # S'actualitza l'estimació de l'estat acció (jo afegire o actualitzare segons si el tinc o no)
-            # self.__q[sa] = self.__returns[sa]
 
             # Actualització de la política
             rand = np.random.random()
             if rand < 1 - self.__eps:
-                # Es trien les millors accions per aquest estat (en cas d'empat s'en selecciones totes les iguals)
-                # Jo tindre les meves possibles accions (cartes a la mà i canvi) en comptes de "actionSpace"
+                # Es trien les millors accions per aquest estat
                 values = []
-                # for a in self.__action_space:
                 for a in available_actions:
                     if (state, a) in self.__q_pairs_visited:
                         values.append(self.__q_pairs_visited[(state, a)]["q"])
                 values = np.array(values)
-                # values = np.array([Q[(state, a)] for a in actionSpace])
-                # En cas d'empat, es tria una aleatoria
-                # if len(values) > 0:
+
+                # En cas d'empat es tria una aleatòria
                 best = np.random.choice(np.where(values == values.max())[0])
 
                 # S'actualitza la política amb la millor acció
-                # self.__policy[state] = self.__action_space[best]
-                self.__policy[state] = available_actions[best]
+                # self.__policy[state] = available_actions[best]
+
+                if values[best] < 0 and len(values) < len(available_actions):
+                    # Aquest cas contempla que, si el valor esperat és negatiu i no s'han visitat totes les accions,
+                    # S'escollirà una de les accions restants aleatòries per afegir a la policy
+                    # Representa que s'ha d'inicialitzar els valors de Q a 0 al principi de l'entrenament
+                    # Com que jo no els tinc, si el primer cop perd 20 punts, ell sempre escolliria aquesta, ja que la resta de valors no hi son
+                    # Així representa que estaria agafant un dels altres valors que estan a 0, que serien millors que aquesta opció de -20
+
+                    other_available_actions = [action for action in available_actions if action != available_actions[best]]
+                    self.__policy[state] = np.random.choice(other_available_actions)
+                else:
+                    # S'actualitza la política amb la millor acció
+                    self.__policy[state] = available_actions[best]
+
             else:
                 # S'actualitza la política amb una acció aleatoria
-                # TODO -> Jo tindre només les accions possibles
-                # self.__policy[state] = np.random.choice(self.__action_space)
                 self.__policy[state] = np.random.choice(available_actions)
 
     def update_policy(self):
+        # Actualització de la política
+        # Calcul dels retorns
         self.__calculate_returns()
 
         # Es recorre la llista d'estats, accions i retorns en ordre de la partida

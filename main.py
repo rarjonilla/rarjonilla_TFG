@@ -3,6 +3,8 @@ import json
 import os
 import time
 from typing import List, Tuple, Optional, Dict
+import itertools
+from itertools import product
 
 import tensorflow as tf
 
@@ -12,21 +14,17 @@ from configuration import TOTAL_GAMES, NUM_PLAYERS, SINGLE_MODE, GAME_TYPE, MODE
 
 from game_environment.game import Non_playable_game
 from playable.playable import Playable
+from results.generate_csv import Generate_csv_results
+from results.generate_graphs import Generate_results_graphs
 from training.genetic.genetic_training import Genetic_training
 from training.genetic.genetic_training_rl import Genetic_training_rl
 from training.reinforcement.reinforcement_training import Reinforcement_training
 from training.supervised.supervised_training import Supervised_training
 
-# TODO Avaluacion de modelos. Generar 50 partidas aleatorias n veces y hacer la media de victorias / derrotas
-# Generar un grafico de los diferentes modelos
-# Por ejemplo, para las supervisadas, los enfrentamientos serian contra la IA de 3 capas automaticas
-
 # TODO MyPy per validació de typing
 # TODO Falta fer que la part Playable tingui els elements privats "__variable" i crear les funcions necessàries per al funcionament
-# TODO Falta crear una estructura de carpetes millor, on hi hagi els sl_models finals, els sl_models de l'usuari i que estiguin ordenats segons tipus d'entrenament (round points, heuristic, win or lose, genetic (millors poblacions cada X generacions), per reforç, ...)
-# TODO -> ga_models -> s'ha de fer una estructura per regles aplicades (per exemple: 0000, 0001, 0010, ... 1111) per saber amb quines regles s'ha entrenat el model
-# TODO -> passar is_supervised_training als parametres de "Game_state" i fer proves de que funcioni correctament
-# pip install mypy
+# TODO -> Passar is_supervised_training als parametres de "Game_state" i fer proves de que funcioni correctament
+# TODO -> Falta acabar de desenvolupar el menú d'opcions del programa. Les simulacions i emmagatzemament dels resultats i la generació de les gràfiques s'han execcutat amb codi manualment
 def simulation(game_type: int = GAME_TYPE, total_games: int = TOTAL_GAMES, model_type: List[int] = MODEL_TYPE, model_path: List[str] = MODEL_PATH, num_players: int = NUM_PLAYERS, single_mode: bool = SINGLE_MODE, is_playable: bool = False, rules: Dict = DEFAULT_RULES, human_player: bool = False) -> None:
     # rules = CUSTOM_RULES if APPLY_CUSTOM_RULES else DEFAULT_RULES
 
@@ -72,14 +70,14 @@ def training():
     train = False
 
     # model_ = f'sl_models/brisca/{i}j/st_nds_heu_20240403_202253.h5'
-    for i in range(2, 5):
+    for i in range(4, 5):
         # if i == 2:
         # tg = total_games if i == 2 else total_games * 2
         tg = total_games
 
         save_filename: str = f'{tg}_partides_40_20'
-        do_this = True
-        if i > 2:
+        do_this = False
+        if do_this:
             print(f"brisca single {i} players")
             start_time_brisca = time.time()
             Supervised_training(training_type, total_games=tg, game_type=1, num_players=i, single_mode=True, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, csv_filename_2=None, save_prepared_data=True, save_filename=save_filename, do_training=train, layers=[40, 20])
@@ -90,19 +88,23 @@ def training():
             Supervised_training(training_type, total_games=tg, game_type=2, num_players=i, single_mode=True, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, csv_filename_2=None, save_prepared_data=True, save_filename=save_filename, do_training=train, layers=[40, 20])
             print("--- %s seconds ---" % (time.time() - start_time_tute))
 
-        print(f"tute single assist {i} players")
-        start_time_tute = time.time()
-        Supervised_training(training_type, total_games=tg, game_type=2, num_players=i, single_mode=True, only_assist=True, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, csv_filename_2=None, save_prepared_data=True, save_filename=save_filename, do_training=train, layers=[40, 20])
-        print("--- %s seconds ---" % (time.time() - start_time_tute))
+            print(f"tute single assist {i} players")
+            start_time_tute = time.time()
+            Supervised_training(training_type, total_games=tg, game_type=2, num_players=i, single_mode=True, only_assist=True, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, csv_filename_2=None, save_prepared_data=True, save_filename=save_filename, do_training=train, layers=[40, 20])
+            print("--- %s seconds ---" % (time.time() - start_time_tute))
 
         if i == 4:
-            if do_this:
-                print(f"brisca team {i} players")
-                start_time_brisca = time.time()
-                # Supervised_training(training_type, total_games=tg, game_type=1, num_players=i, single_mode=False, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, prepare_data=True, train=True)
-                # Supervised_training(training_type, total_games=tg, game_type=1, num_players=i, single_mode=False, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=False, csv_filename='data/brisca/2j/20240401_215008.csv', prepare_data=True, train=True)
-                Supervised_training(training_type, total_games=tg, game_type=1, num_players=i, single_mode=False, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, csv_filename_2=None, save_prepared_data=True, save_filename=save_filename, do_training=train, layers=[40, 20])
-                print("--- %s seconds ---" % (time.time() - start_time_brisca))
+            print(f"brisca team {i} players")
+            start_time_brisca = time.time()
+            # Supervised_training(training_type, total_games=tg, game_type=1, num_players=i, single_mode=False, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, prepare_data=True, train=True)
+            # Supervised_training(training_type, total_games=tg, game_type=1, num_players=i, single_mode=False, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=False, csv_filename='data/brisca/2j/20240401_215008.csv', prepare_data=True, train=True)
+            Supervised_training(training_type, total_games=tg, game_type=1, num_players=i, single_mode=False,
+                                only_assist=False, rivals_model_type=[1, 1, 1, 1],
+                                rivals_model_name=[None, None, None, None], generate_data=False, csv_filename='data/brisca/4jt/20240520_104822_8000_partides_40_20_prepared_normalized.csv',
+                                csv_filename_2=None, save_prepared_data=False, save_filename=save_filename,
+                                do_training=True, layers=[40, 20])
+            # Supervised_training(training_type, total_games=tg, game_type=1, num_players=i, single_mode=False, only_assist=False, rivals_model_type=[1, 1, 1, 1], rivals_model_name=[None, None, None, None], generate_data=True, csv_filename=None, csv_filename_2=None, save_prepared_data=True, save_filename=save_filename, do_training=train, layers=[40, 20])
+            print("--- %s seconds ---" % (time.time() - start_time_brisca))
 
             print(f"tute team no assist {i} players")
             start_time_tute = time.time()
@@ -713,7 +715,7 @@ if USE_GPU and a:
         except RuntimeError as e:
             print(e)
 
-# main()
+main()
 # training()
 
 # Genetic_training(1, 10, 2, True, CUSTOM_RULES, 'test_1', [75, 50], 50, 10, 3, 1, None, None)
@@ -883,44 +885,224 @@ if do_this:
 # a = Genetic_training_rl(1, 10, 2, True, CUSTOM_RULES, False, False, 'test_4_generations', 200, 20, 4, 0, 5, 1, 0, True, 500, False, None, True, 0.05, 1e-7, 1.0, False)
 # print("--- %s seconds ---" % (time.time() - start_time))
 
+if do_this:
+    rules = {'can_change': False, 'last_tens': False, 'black_hand': False, 'hunt_the_three': False, 'only_assist': False}
+    # do_this = False
+    # if do_this:
+    episodes = 2000000
+    # a = Reinforcement_training(2, episodes, 2, False, rules, [f'rl_models/tute_only_assist/2j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
+    a = None
+    gc.collect()
+    episodes = 1000000
+    # a = Reinforcement_training(2, episodes, 2, False, rules, [f'rl_models/tute_only_assist/2j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
+    a = None
+    gc.collect()
 
+    episodes = 1000000
+    # a = Reinforcement_training(2, episodes, 3, False, rules, [f'rl_models/tute_only_assist/3j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
+    a = None
+    gc.collect()
+    episodes = 2000000
+    # a = Reinforcement_training(2, episodes, 3, False, rules, [f'rl_models/tute_only_assist/3j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
+    a = None
+    gc.collect()
+
+    episodes = 1000000
+    # a = Reinforcement_training(2, episodes, 4, False, rules, [f'rl_models/tute_only_assist/4j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
+    a = None
+    gc.collect()
+    episodes = 2000000
+    # a = Reinforcement_training(2, episodes, 4, False, rules, [f'rl_models/tute_only_assist/4j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
+    a = None
+    gc.collect()
+
+    episodes = 1000000
+    # a = Reinforcement_training(2, episodes, 4, False, rules, [f'rl_models/tute_only_assist/4jt/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
+    a = None
+    gc.collect()
+    episodes = 2000000
+    # a = Reinforcement_training(2, episodes, 4, False, rules, [f'rl_models/tute_only_assist/4jt/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
+    a = None
+    gc.collect()
+
+# Generate_results_graphs('results/brisca_2j_test.csv', 2, True)
+# Generate_results_graphs('results/brisca_3j_test.csv', 3, True)
+
+# Simulacions per resultats
+# Brisca 2j
+# 7 -> GA
+# 8 -> SL heu norm
+# 10 -> RL multiple key
+sl_2_capes_path = 'sl_models/brisca/2j/sl_heu_norm_20240520_120011_8000_partides_2_capes.keras'
+sl_3_capes_path = 'sl_models/brisca/2j/sl_heu_norm_20240514_075518_10000_partides_3_capes.keras'
+ga_path = 'ga_models/brisca/2j/0000_20240515_162533_10_games_1000_generations_layers_50_25_population_32_best_6_directive_1_elite_selection/best_models/ga_generation_999_nn_17.keras'
+rl_path = 'rl_models/brisca/2j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent'
+
+game_type = 1
+total_games = 60
+num_players = 2
+single_mode = True
 rules = {'can_change': False, 'last_tens': False, 'black_hand': False, 'hunt_the_three': False, 'only_assist': False}
-# do_this = False
-# if do_this:
-episodes = 2000000
-# a = Reinforcement_training(2, episodes, 2, False, rules, [f'rl_models/tute_only_assist/2j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
-a = None
-gc.collect()
-episodes = 1000000
-# a = Reinforcement_training(2, episodes, 2, False, rules, [f'rl_models/tute_only_assist/2j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
-a = None
-gc.collect()
 
-episodes = 1000000
-# a = Reinforcement_training(2, episodes, 3, False, rules, [f'rl_models/tute_only_assist/3j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
-a = None
-gc.collect()
-episodes = 2000000
-# a = Reinforcement_training(2, episodes, 3, False, rules, [f'rl_models/tute_only_assist/3j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
-a = None
-gc.collect()
+rules_str = "can_change last_tens black_hand"
+if num_players == 2:
+    rules_str += " hunt_the_three"
 
-episodes = 1000000
-# a = Reinforcement_training(2, episodes, 4, False, rules, [f'rl_models/tute_only_assist/4j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
-a = None
-gc.collect()
-episodes = 2000000
-a = Reinforcement_training(2, episodes, 4, False, rules, [f'rl_models/tute_only_assist/4j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
-a = None
-gc.collect()
+# print(rules_str)
+rules_list = rules_str.split()
 
-episodes = 1000000
-a = Reinforcement_training(2, episodes, 4, False, rules, [f'rl_models/tute_only_assist/4jt/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
-a = None
-gc.collect()
-episodes = 2000000
-a = Reinforcement_training(2, episodes, 4, False, rules, [f'rl_models/tute_only_assist/4jt/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent', None, None, None], 0.1, 1e-7, 1.0, True, True)
-a = None
-gc.collect()
+doThis = False
+if doThis:
+    # Es generen 8 o 16 combinacions diferents
+    # Cada CSV contindrà X partides per a cada combinació
+    # Si decidim 1000 partides, es generaran 1000 partides per a cada combinació (8000 o 16000)
 
-print("--- %s seconds ---" % (time.time() - start_time))
+    for p in itertools.product([False, True], repeat=len(rules_list)):
+        rules = dict(zip(rules_list, p))
+
+        if num_players > 2:
+            rules['hunt_the_three'] = False
+
+        rules['only_assist'] = False
+
+        # print(rules)
+        Generate_csv_results(game_type, total_games, [8, 8, None, None], [sl_2_capes_path, sl_3_capes_path, None, None], num_players, single_mode, rules, 'results/brisca_2j.csv')
+
+    rules = {'can_change': False, 'last_tens': False, 'black_hand': False, 'hunt_the_three': False, 'only_assist': False}
+
+    Generate_csv_results(game_type, total_games, [8, 7, None, None], [sl_2_capes_path, ga_path, None, None], num_players, single_mode, rules, 'results/brisca_2j.csv')
+    Generate_csv_results(game_type, total_games, [8, 7, None, None], [sl_3_capes_path, ga_path, None, None], num_players, single_mode, rules, 'results/brisca_2j.csv')
+    Generate_csv_results(game_type, total_games, [10, 7, None, None], [rl_path, ga_path, None, None], num_players, single_mode, rules, 'results/brisca_2j.csv')
+    Generate_csv_results(game_type, total_games, [10, 8, None, None], [rl_path, sl_2_capes_path, None, None], num_players, single_mode, rules, 'results/brisca_2j.csv')
+    Generate_csv_results(game_type, total_games, [10, 8, None, None], [rl_path, sl_3_capes_path, None, None], num_players, single_mode, rules, 'results/brisca_2j.csv')
+
+    num_players = 3
+    sl_2_capes_path = 'sl_models/brisca/3j/sl_heu_norm_20240520_161304_8000_partides_2_capes.keras'
+    sl_3_capes_path = 'sl_models/brisca/3j/sl_heu_norm_20240521_174224_8000_partides_3_capes.keras'
+    rl_path = 'rl_models/brisca/3j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent'
+    Generate_csv_results(game_type, total_games, [8, 8, 10, None], [sl_2_capes_path, sl_3_capes_path, rl_path, None], num_players, single_mode, rules, 'results/brisca_3j.csv')
+    Generate_csv_results(game_type, total_games, [8, 8, 10, None], [sl_3_capes_path, sl_2_capes_path, rl_path, None], num_players, single_mode, rules, 'results/brisca_3j.csv')
+
+    num_players = 4
+    sl_2_capes_path = 'sl_models/brisca/4j/sl_heu_norm_20240520_181501_8000_partides_2_capes.keras'
+    sl_3_capes_path = 'sl_models/brisca/4j/sl_heu_norm_20240521_195154_8000_partides_3_capes.keras'
+    rl_path = 'rl_models/brisca/4j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent'
+    # Generate_csv_results(game_type, total_games, [8, 8, 8, 8], [sl_2_capes_path, sl_3_capes_path, sl_2_capes_path, sl_3_capes_path], num_players, single_mode, rules, 'results/brisca_4j.csv')
+    Generate_csv_results(game_type, total_games, [8, 8, 10, 1], [sl_2_capes_path, sl_3_capes_path, rl_path, 'Random'], num_players, single_mode, rules, 'results/brisca_4j.csv')
+    Generate_csv_results(game_type, total_games, [8, 8, 1, 10], [sl_2_capes_path, sl_3_capes_path, 'Random', rl_path], num_players, single_mode, rules, 'results/brisca_4j.csv')
+    Generate_csv_results(game_type, total_games, [8, 10, 8, 1], [sl_2_capes_path, rl_path, sl_3_capes_path, 'Random'], num_players, single_mode, rules, 'results/brisca_4j.csv')
+    Generate_csv_results(game_type, total_games, [8, 10, 1, 8], [sl_2_capes_path, rl_path, 'Random', sl_3_capes_path], num_players, single_mode, rules, 'results/brisca_4j.csv')
+    Generate_csv_results(game_type, total_games, [8, 1, 10, 8], [sl_2_capes_path, 'Random', rl_path, sl_3_capes_path], num_players, single_mode, rules, 'results/brisca_4j.csv')
+    Generate_csv_results(game_type, total_games, [8, 1, 8, 10], [sl_2_capes_path, 'Random', sl_3_capes_path, rl_path], num_players, single_mode, rules, 'results/brisca_4j.csv')
+
+    rules = {'can_change': False, 'last_tens': False, 'black_hand': False, 'hunt_the_three': False, 'only_assist': False}
+    num_players = 4
+    single_mode = False
+    sl_2_capes_path = 'sl_models/brisca/4jt/sl_heu_norm_20240520_202134_8000_partides_2_capes.keras'
+    sl_3_capes_path = 'sl_models/brisca/4jt/sl_heu_norm_20240521_220736_8000_partides_3_capes.keras'
+    rl_path = 'rl_models/brisca/4jt/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent'
+
+    Generate_csv_results(game_type, total_games, [8, 8, 8, 8], [sl_2_capes_path, sl_3_capes_path, sl_2_capes_path, sl_3_capes_path], num_players, single_mode, rules, 'results/brisca_4jt.csv')
+    Generate_csv_results(game_type, total_games, [8, 10, 8, 10], [sl_2_capes_path, rl_path, sl_2_capes_path, rl_path], num_players, single_mode, rules, 'results/brisca_4jt.csv')
+    Generate_csv_results(game_type, total_games, [8, 10, 8, 10], [sl_3_capes_path, rl_path, sl_3_capes_path, rl_path], num_players, single_mode, rules, 'results/brisca_4jt.csv')
+
+    game_type = 2
+    num_players = 2
+    single_mode = True
+    sl_2_capes_path = 'sl_models/tute/2j/sl_heu_norm_20240520_132647_8000_partides_2_capes.keras'
+    sl_3_capes_path = 'sl_models/tute/2j/sl_heu_norm_20240521_144601_8000_partides_3_capes.keras'
+    rl_path = 'rl_models/tute/2j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent'
+
+    for p in itertools.product([False, True], repeat=len(rules_list)):
+        rules = dict(zip(rules_list, p))
+
+        if num_players > 2:
+            rules['hunt_the_three'] = False
+
+        rules['only_assist'] = False
+
+        Generate_csv_results(game_type, total_games, [8, 8, None, None], [sl_2_capes_path, sl_3_capes_path, None, None], num_players, single_mode, rules, 'results/tute_2j.csv')
+
+    rules = {'can_change': False, 'last_tens': False, 'black_hand': False, 'hunt_the_three': False, 'only_assist': False}
+
+    Generate_csv_results(game_type, total_games, [10, 8, None, None], [rl_path, sl_2_capes_path, None, None], num_players, single_mode, rules, 'results/tute_2j.csv')
+    Generate_csv_results(game_type, total_games, [10, 8, None, None], [rl_path, sl_3_capes_path, None, None], num_players, single_mode, rules, 'results/tute_2j.csv')
+
+    num_players = 3
+    sl_2_capes_path = 'sl_models/tute/3j/sl_heu_norm_20240520_165049_8000_partides_2_capes.keras'
+    sl_3_capes_path = 'sl_models/tute/3j/sl_heu_norm_20240521_182240_8000_partides_3_capes.keras'
+    rl_path = 'rl_models/tute/3j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent'
+    Generate_csv_results(game_type, total_games, [8, 8, 10, None], [sl_2_capes_path, sl_3_capes_path, rl_path, None], num_players, single_mode, rules, 'results/tute_3j.csv')
+    Generate_csv_results(game_type, total_games, [8, 8, 10, None], [sl_3_capes_path, sl_2_capes_path, rl_path, None], num_players, single_mode, rules, 'results/tute_3j.csv')
+
+    num_players = 4
+    sl_2_capes_path = 'sl_models/tute/4j/sl_heu_norm_20240520_185401_8000_partides_2_capes.keras'
+    sl_3_capes_path = 'sl_models/tute/4j/sl_heu_norm_20240521_203348_8000_partides_3_capes.keras'
+    rl_path = 'rl_models/tute/4j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent'
+    Generate_csv_results(game_type, total_games, [8, 8, 10, 1], [sl_2_capes_path, sl_3_capes_path, rl_path, 'Random'], num_players, single_mode, rules, 'results/tute_4j.csv')
+    Generate_csv_results(game_type, total_games, [8, 8, 1, 10], [sl_2_capes_path, sl_3_capes_path, 'Random', rl_path], num_players, single_mode, rules, 'results/tute_4j.csv')
+    Generate_csv_results(game_type, total_games, [8, 10, 8, 1], [sl_2_capes_path, rl_path, sl_3_capes_path, 'Random'], num_players, single_mode, rules, 'results/tute_4j.csv')
+    Generate_csv_results(game_type, total_games, [8, 10, 1, 8], [sl_2_capes_path, rl_path, 'Random', sl_3_capes_path], num_players, single_mode, rules, 'results/tute_4j.csv')
+    Generate_csv_results(game_type, total_games, [8, 1, 10, 8], [sl_2_capes_path, 'Random', rl_path, sl_3_capes_path], num_players, single_mode, rules, 'results/tute_4j.csv')
+    Generate_csv_results(game_type, total_games, [8, 1, 8, 10], [sl_2_capes_path, 'Random', sl_3_capes_path, rl_path], num_players, single_mode, rules, 'results/tute_4j.csv')
+
+    game_type = 2
+    single_mode = False
+    num_players = 4
+    sl_2_capes_path = 'sl_models/tute/4jt/sl_heu_norm_20240520_210052_8000_partides_2_capes.keras'
+    sl_3_capes_path = 'sl_models/tute/4jt/sl_heu_norm_20240521_225107_8000_partides_3_capes.keras'
+    rl_path = 'rl_models/tute/4jt/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent'
+    # Generate_csv_results(game_type, total_games, [8, 8, 8, 8], [sl_2_capes_path, sl_3_capes_path, sl_2_capes_path, sl_3_capes_path], num_players, single_mode, rules, 'results/tute_4jt.csv')
+    # Generate_csv_results(game_type, total_games, [8, 10, 8, 10], [sl_2_capes_path, rl_path, sl_2_capes_path, rl_path], num_players, single_mode, rules, 'results/tute_4jt.csv')
+    Generate_csv_results(game_type, total_games, [8, 10, 8, 10], [sl_3_capes_path, rl_path, sl_3_capes_path, rl_path], num_players, single_mode, rules, 'results/tute_4jt.csv')
+
+    rules = {'can_change': False, 'last_tens': False, 'black_hand': False, 'hunt_the_three': False, 'only_assist': True}
+    num_players = 2
+    single_mode = True
+    sl_2_capes_path = 'sl_models/tute_only_assist/2j/sl_heu_norm_20240520_144942_8000_partides_2_capes.keras'
+    sl_3_capes_path = 'sl_models/tute_only_assist/2j/sl_heu_norm_20240521_161427_8000_partides_3_capes.keras'
+    rl_path = 'rl_models/tute_only_assist/2j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent'
+
+    for p in itertools.product([False, True], repeat=len(rules_list)):
+        rules = dict(zip(rules_list, p))
+
+        if num_players > 2:
+            rules['hunt_the_three'] = False
+
+        rules['only_assist'] = True
+
+        # print(rules)
+        Generate_csv_results(game_type, total_games, [8, 8, None, None], [sl_2_capes_path, sl_3_capes_path, None, None], num_players, single_mode, rules, 'results/tute_assist_2j.csv')
+
+    Generate_csv_results(game_type, total_games, [10, 8, None, None], [rl_path, sl_2_capes_path, None, None], num_players, single_mode, rules, 'results/tute_assist_2j.csv')
+    Generate_csv_results(game_type, total_games, [10, 8, None, None], [rl_path, sl_3_capes_path, None, None], num_players, single_mode, rules, 'results/tute_assist_2j.csv')
+
+    num_players = 3
+    sl_2_capes_path = 'sl_models/tute_only_assist/3j/sl_heu_norm_20240520_173228_8000_partides_2_capes.keras'
+    sl_3_capes_path = 'sl_models/tute_only_assist/3j/sl_heu_norm_20240521_190645_8000_partides_3_capes.keras'
+    rl_path = 'rl_models/tute_only_assist/3j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent'
+    Generate_csv_results(game_type, total_games, [8, 8, 10, None], [sl_2_capes_path, sl_3_capes_path, rl_path, None], num_players, single_mode, rules, 'results/tute_assist_3j.csv')
+    Generate_csv_results(game_type, total_games, [8, 8, 10, None], [sl_3_capes_path, sl_2_capes_path, rl_path, None], num_players, single_mode, rules, 'results/tute_assist_3j.csv')
+
+    num_players = 4
+    sl_2_capes_path = 'sl_models/tute_only_assist/4j/sl_heu_norm_20240520_193721_8000_partides_2_capes.keras'
+    sl_3_capes_path = 'sl_models/tute_only_assist/4j/sl_heu_norm_20240521_212042_8000_partides_3_capes.keras'
+    rl_path = 'rl_models/tute_only_assist/4j/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent'
+    Generate_csv_results(game_type, total_games, [8, 8, 10, 1], [sl_2_capes_path, sl_3_capes_path, rl_path, 'Random'], num_players, single_mode, rules, 'results/tute_assist_4j.csv')
+    Generate_csv_results(game_type, total_games, [8, 8, 1, 10], [sl_2_capes_path, sl_3_capes_path, 'Random', rl_path], num_players, single_mode, rules, 'results/tute_assist_4j.csv')
+    Generate_csv_results(game_type, total_games, [8, 10, 8, 1], [sl_2_capes_path, rl_path, sl_3_capes_path, 'Random'], num_players, single_mode, rules, 'results/tute_assist_4j.csv')
+    Generate_csv_results(game_type, total_games, [8, 10, 1, 8], [sl_2_capes_path, rl_path, 'Random', sl_3_capes_path], num_players, single_mode, rules, 'results/tute_assist_4j.csv')
+    Generate_csv_results(game_type, total_games, [8, 1, 10, 8], [sl_2_capes_path, 'Random', rl_path, sl_3_capes_path], num_players, single_mode, rules, 'results/tute_assist_4j.csv')
+    Generate_csv_results(game_type, total_games, [8, 1, 8, 10], [sl_2_capes_path, 'Random', sl_3_capes_path, rl_path], num_players, single_mode, rules, 'results/tute_assist_4j.csv')
+
+    game_type = 2
+    single_mode = False
+    num_players = 4
+    sl_2_capes_path = 'sl_models/tute_only_assist/4jt/sl_heu_norm_20240520_214359_8000_partides_2_capes.keras'
+    sl_3_capes_path = 'sl_models/tute_only_assist/4jt/sl_heu_norm_20240522_070957_8000_partides_3_capes.keras'
+    rl_path = 'rl_models/tute_only_assist/4jt/0000_20240521_073000_3000000_partides_mc_multiple_key_eps_01_gamma_1_negative_points_only_one_agent'
+    # Generate_csv_results(game_type, total_games, [8, 8, 8, 8], [sl_2_capes_path, sl_3_capes_path, sl_2_capes_path, sl_3_capes_path], num_players, single_mode, rules, 'results/tute_assist_4jt.csv')
+    Generate_csv_results(game_type, total_games, [8, 10, 8, 10], [sl_2_capes_path, rl_path, sl_2_capes_path, rl_path], num_players, single_mode, rules, 'results/tute_assist_4jt.csv')
+    Generate_csv_results(game_type, total_games, [8, 10, 8, 10], [sl_3_capes_path, rl_path, sl_3_capes_path, rl_path], num_players, single_mode, rules, 'results/tute_assist_4jt.csv')
+
+    print("--- %s seconds ---" % (time.time() - start_time))

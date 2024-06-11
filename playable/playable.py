@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 from tkinter import *
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional
 
 from game_environment.card import Card
 from constants import WINDOW_X_SIZE, WINDOW_Y_SIZE, SLEEP_TIME, PLAYABLE_FRAME_POS_Y, \
@@ -19,15 +19,12 @@ from playable.playable_utility_functions import tksleep, get_card_path, raise_fr
 from game_environment.player import Player
 from configuration import SHOW_RIVAL_CARDS, INSTANT_DEAL
 
-# Misc.tksleep = tksleep
-
-
 class Playable:
-    """
-    Classe Playable...
-    """
+    """Classe Playable"""
     def __init__(self, game_type: int, human_player: bool, total_games: int, model_type: List[int], model_path: List[str], num_players: int, single_mode: bool, rules: Dict, training: bool, csv_filename: str) -> None:
+        # Nombre de jugadors
         self.__num_players: int = num_players
+        # Indica si juga un humà
         self.__human_player: bool = human_player
 
         # Variables del joc
@@ -39,42 +36,46 @@ class Playable:
         self.__round_turn_idx: int = 0
         self.__last_initial_player: int = 0
 
-        # Array dels labels
+        # Llista dels labels de les cartes
         self.__player_cards_lbl: List[List[Playable_card]] = []
 
-        # Array de les posicions jugades
+        # Array de les posicions de les cartes jugades (per fer els moviments de les cartes al repartir)
         self.__played_cards_position: List[Optional[int]] = [None] * num_players
 
+        # Inicialització de les cartes jugades
         for i in range(0, num_players):
             self.__player_cards_lbl.append([])
 
         # Crear Pantalla, frames i iniciar partida
         self.__root: Tk = Tk()
-
         self.__create_window()
         self.__frames: Playable_frames = Playable_frames(self.__root, num_players)
-        # self.create_menu_bar()
 
         # Labels del deck i triomf
         self.__lbl_deck: Optional[Playable_card] = Playable_card(self.__root, self.__frames.frm_board, get_card_path(None), None, None, None, DECK_POS_X, DECK_POS_Y, True)
         self.__lbl_trump_card: Optional[Playable_card] = None
 
+        # S'inicialitza el joc (GUI)
         self.__game = Playable_game(game_type, total_games, model_type, model_path, num_players, single_mode, rules, training, csv_filename, human_player)
+        # Definició dels botons
         self.__buttons: Playable_buttons = Playable_buttons(self.__frames.frm_board, self.__game.is_brisca(), rules['can_change'], self.__new_game, self.__choose_change_card, self.__choose_sing_suit, self.__human_player)
+        # Inici de la partida
         self.__game.new_game()
 
-        # +1 perquè la carta de triomf no es contabilitza dins del deck
+        # +1 perquè la carta de triomf no es comptabilitza dins del deck
         self.__deck_counter = Playable_deck_counter(self.__frames.frm_board, self.__game.deck_get_deck_size() + 1)
 
-        self.__root.after(SLEEP_TIME, self.__deal_cards, self.__game.get_num_cards(), True)  # Després de 2 segons, començar a repartir les cartes
+        # Després de 2 segons, començar a repartir les cartes
+        self.__root.after(SLEEP_TIME, self.__deal_cards, self.__game.get_num_cards(), True)
 
         self.__root.mainloop()
 
     # Window
     def __create_window(self) -> None:
+        # Mida de la finestra
         self.__root.geometry(f'{WINDOW_X_SIZE}x{WINDOW_Y_SIZE}')
+        # La finestra i les posicions estan fixades, no es permet modificar-ne la mida
         self.__root.resizable(False, False)
-        # self.root.config(background="green")
 
     #     def create_menu_bar(self):
     #         menubar = Menu(self.root)
@@ -98,14 +99,18 @@ class Playable:
 
     # Game
     def __deal_cards(self, total_cards_to_deal: int, deal_trump: bool = False) -> None:
+        # Primer jugador al que se li reparteix carta
         deal_player_id = self.__game.get_last_round_winner_id()
 
+        # Es repateixen totes les cartes (entre 1 i 8 segons si és inici de joc o inici de ronda)
         for card_pos in range(0, total_cards_to_deal):
             for round_turn_idx in range(0, self.__num_players):
                 player: Player = self.__game.get_player_turn(round_turn_idx)
+                # Es comprova si és la carta de triomd
                 is_trump_card = True if not self.__game.deck_has_remaining_cards() and round_turn_idx == (self.__num_players - 1) else False
 
                 if self.__played_cards_position[player.get_id()] is None:
+                    # Es reparteixen les cartes a l'inici de la partida, no cal fer moviments de la resta de cartes
                     card_pos, card = player.hand_get_card_in_position_no_remove(card_pos)
                     self.__deal_card(card, player.get_id(), card_pos, is_trump_card)
                 else:

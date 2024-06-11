@@ -27,33 +27,51 @@ from training.genetic.genetic_training_mutation import Genetic_training_mutation
 
 
 class Genetic_training:
-    """Classe Supervised Training"""
+    """Classe Genetic Training Xarxa neuronal"""
 
     def __init__(self, game_type: int, total_games: int, num_players: int, single_mode: bool, rules: Dict, old_data: bool,
                  start_from_old_data: bool, save_filename: str, layers: List[int], population_size: int,
                  best_n_population: int, generations: int, next_generation: int, cm_directive: int,
                  custom_crossover_ratio: float, custom_mutation_ratio: float, finalized_generation: bool, threads: int,
                  double_tournament: bool, sl_model: Optional[str], elit_selection: bool) -> None:
+
+        # Informació de la partida
         self.__game_type: int = game_type
         self.__total_games: int = total_games
         self.__num_players: int = num_players
         self.__single_mode: bool = single_mode
         self.__rules = rules
+
+        # Capes de la xarxa neuronal
         self.__layers: List[int] = layers
+
+        # total d'individus per població
         self.__population_size: int = population_size
+        # Selecció dels "n" millors
         self.__best_n_population: int = best_n_population
+        # Total de generacions
         self.__generations: int = generations
+        # Generació actual
         self.__generation: int = next_generation
+        # Indica si ja ha finalitzat la generació actual
         self.__finalized_generation: bool = finalized_generation
+        # Nombre de fils per a les simulacions en paral·lel
         self.__threads: int = threads
+        # Doble selecció
         self.__double_tournament: bool = double_tournament
+        # Path del rival al qual s'enfronten (None és emparellaments entre ells)
         self.__sl_model: Optional[str] = sl_model
+        # Indica si s'aplica la selecció d'èlit
         self.__elite_selection: bool = elit_selection
 
+        # Directiva de control
         self.__genetic_training_cm_directive: Genetic_training_cm_directive = Genetic_training_cm_directive(cm_directive, custom_crossover_ratio, custom_mutation_ratio, generations)
+        # Funcions de mutació
         self.__genetic_training_mutation: Genetic_training_mutation = Genetic_training_mutation(0, -1, 1)
+        # Funcions d'encreuament
         self.__genetic_training_crossover: Genetic_training_crossover = Genetic_training_crossover(0)
 
+        # Nom de la carpeta on es guardaran els models
         date = datetime.now()
         rules_str: str = ""
         rules_str += "1" if rules["can_change"] else "0"
@@ -62,6 +80,8 @@ class Genetic_training:
         rules_str += "1" if rules["hunt_the_three"] and self.__num_players == 2 else "0"
         rules_str += "_"
         self.__save_filename: str = rules_str + date.strftime("%Y%m%d_%H%M%S") + "_" + save_filename if not old_data and not start_from_old_data else save_filename
+
+        # Es comença l'entrenament partint dels millors individus d'un alre entrenament
         self.__old_filename: str = ""
         self.__old_data: bool = old_data
         self.__start_from_old_data: bool = start_from_old_data
@@ -73,14 +93,20 @@ class Genetic_training:
             self.__save_filename = date.strftime("%Y%m%d_%H%M%S") + "_" + "_".join(new_save_filename_split)
 
         self.__old_data_directory: str = ""
+
+        # Ruta del directori dels models
         self.__directory: str = self.__define_directory()
 
+        # Ruta del directori dels millors models
         self.__best_models_directory = self.__directory + "best_models/"
+
+        # Ruta del directori dels models antics (els que no es seleccionen)
         self.__old_models_directory = self.__directory + "old_models/"
         if not self.__old_data:
             os.makedirs(self.__old_models_directory)
             os.makedirs(self.__best_models_directory)
 
+        # Definició del nombre d'inputs d'entrada
         self.__inputs: int = self.__define_inputs()
 
         # Cada possible acció és un output
@@ -90,10 +116,13 @@ class Genetic_training:
 
         self.__layers_definition = self.__define_layers_definition()
 
+        # Si la generació és la 0 i no ha finalitzat, es genera la població inicial
         if self.__generation == 0 and self.__finalized_generation:
             self.__generate_initial_population()
 
+        # Fitxer amb la informació de l'entrenament
         self.info_filename = 'training_info.json'
+        # Informació emmagatzemada
         self.__data: Dict = {
             'game_type': self.__game_type,
             'total_games': self.__total_games,
@@ -116,16 +145,24 @@ class Genetic_training:
             'elite_selection': self.__elite_selection
         }
 
+        # Fitxer de log dels resultats de cada individu
         self.__game_log = 'game_log.csv'
+
+        # Si no existeix el fitxer, es crea amb la capçalera
         if not os.path.exists(self.__directory + self.__game_log):
             self.__write_game_log("Model name,Wins,Points")
 
+        # Fitxer de log amb els encreuaments i mutacions
         self.__log_cm_filename = 'log_crossover_mutation.csv'
+
+        # Si no existeix el fitxer, es crea amb la capçalera
         if not os.path.exists(self.__directory + self.__log_cm_filename):
             self.__write_log_cm("Model name,Parent model 1,Parent model 2,Crossover ratio,Crossover function,Mutation ratio,Mutation function")
 
+        # S'emmagatzema el fitxer d'informació inicial
         self.__save_info_json()
 
+        # Iniciar entrenament
         self.__training()
 
     def __is_brisca(self) -> bool:
@@ -133,6 +170,7 @@ class Genetic_training:
 
     # Funció per guardar un JSON amb la informació de l'entrenament
     def __save_info_json(self) -> None:
+        # Es modifica la informació que varia amb el pas de les generacions
         self.__data["finalized_generation"] = self.__finalized_generation
 
         with open(self.__directory + self.info_filename, 'w') as f:
@@ -145,6 +183,7 @@ class Genetic_training:
             # nom fill, nom_pare_1, nom_pare_2, crossover_ratio, crossover_function, mutation_ratio (None), mutation_function (None)
             csv_writer.writerow(csv_line.split(','))
 
+    # Funció per guardar un CSV amb la informació d'encreuament i mutació
     def __write_game_log(self, csv_line) -> None:
         with open(self.__directory + self.__game_log, 'a', newline='') as csv_file:
             # Crear objecte writer
@@ -152,11 +191,7 @@ class Genetic_training:
             # nom model, wins, points
             csv_writer.writerow(csv_line.split(','))
 
-    # # Funció per obrir un JSON amb la informació de l'entrenament
-    #     def __load_info_json(self):
-    #         with open(self.__directory + self.info_filename, 'r') as f:
-    #             return json.load(f)
-
+    # Es defineix el directori de l'entrenament
     def __define_directory(self) -> str:
         directory: str = "ga_models/"
         if self.__game_type == 1:
@@ -182,6 +217,7 @@ class Genetic_training:
 
         return directory
 
+    # Definició dels inputs d'entrada de la xarxa neuronal segons modalitat i jugadors
     def __define_inputs(self) -> int:
         inputs = 0
         if self.__is_brisca():
@@ -201,6 +237,7 @@ class Genetic_training:
 
         return inputs
 
+    # Definició de les capes de la xarxa neuronal
     def __define_layers_definition(self):
         # layers_definition = []
         #         for idx_layer, neurons in enumerate(self.__layers):
@@ -227,24 +264,17 @@ class Genetic_training:
 
         return layers_definition_v2
 
+    # Generació d'una xarxa neuronal aleatòria
     def __generate_random_nn(self, name):
         model = tf.keras.Sequential(self.__layers_definition, name=name)
-        #         for layer in self.__layers_definition:
-        #             # add layer with random weight and bias
-        #             # Per defecte, keras utilitza Glorot uniform per als pesos i zeros per el bias
-        #             # Es pot provar per defecte o afegint un bias random per que les pobalcions siguin encara més diferents entre elles
-        #             model.add(tf.keras.layers.Dense(units=layer['neurons'], activation=layer['activation'], kernel_initializer=tf.keras.initializers.glorot_normal(), bias_initializer=tf.keras.initializers.RandomNormal()))
-        #             print(layer['neurons'], layer['activation'])
-        #             # model.add(tf.keras.layers.Dense(units=layer['neurons'], activation=layer['activation']))
-
         # model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy', 'precision', 'recall', 'f1_score'])
         model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy', 'precision', 'recall'])
 
         return model
 
+    # Es copien els millors individus d'un altre entrenament per començar-ne un de nou
     def __copy_trained_population(self) -> None:
         # Agafar totes les poblacions de l'entrenament anterior
-        # print(self.__old_data_directory)
         all_files: List[str] = os.listdir(self.__old_data_directory)
         old_models: List[str] = [file for file in all_files if file.endswith(".keras")]
 
@@ -254,6 +284,7 @@ class Genetic_training:
             new_model = os.path.join(self.__directory, new_name)
             shutil.copyfile(old_model, new_model)
 
+    # Generació de la població inicial
     def __generate_initial_population(self) -> None:
         if self.__start_from_old_data:
             # Copiar les xarxes neuronals de l'entrenament anterior i canviar-li el número de generació a 0
@@ -266,38 +297,11 @@ class Genetic_training:
                 # print(f"{self.__directory}{model_name}.keras")
                 model.save(f"{self.__directory}{model_name}.keras")
 
+    # Selecció d'emparellaments de la població
     def __select_pairings(self, population: List[str]) -> List[List[str]]:
         random.shuffle(population)
 
         return [population[i:i + self.__num_players] for i in range(0, len(population), self.__num_players)]
-
-    # # Obtenir pesos i bias de totes les capes del model en un unic vector
-    #     def __get_weights_bias_as_vector(self, models_path: List[str]) -> List[Tuple[str, List[float], List[float]]]:
-    #         vectors: List[Tuple[List[float], List[float]]] = []
-    #         for model_path in models_path:
-    #             model = load_model(self.__best_models_directory + model_path, custom_objects={'precision': Precision(), 'recall': Recall(), 'accuracy': Accuracy()})
-    #
-    #             weights_vector: List[float] = []
-    #             bias_vector: List[float] = []
-    #
-    #             # Es recorren les capes del model
-    #             for i, layer in enumerate(model.layers):
-    #                 # S'agafa la matriu de connexions dels pesos i els bias
-    #                 layer_weights, layer_bias = layer.get_weights()
-    #
-    #                 # Es recorre cada fila de la matriu de pesos
-    #                 for j, row in enumerate(layer_weights):
-    #                     # print("Capa", i + 1, j + 1, "Pesos:", row)
-    #                     # S'afegeix cada pes al vector de pesos
-    #                     for weight in row:
-    #                         weights_vector.append(weight)
-    #
-    #                 # print("Capa", i + 1, "Bias:", layer_bias)
-    #                 # S'afegeix cada bias al vector de pesos
-    #                 for weight in layer_bias:
-    #                     bias_vector.append(weight)
-    #             vectors.append((model_path, weights_vector, bias_vector))
-    #         return vectors
 
     # Obtenir pesos i bias de cada capa del model en un unic vector
     def __get_weights_bias_as_vector(self, models_path: List[str]) -> List[Tuple[str, List[List[float]], List[float]]]:
@@ -334,85 +338,9 @@ class Genetic_training:
             vectors.append((model_path, weights_vectors, bias_vectors))
         return vectors
 
-    #     def __set_weights_bias_to_model(self, model, weights: List[float], bias: List[float]):
-    #         # Definim el nombre de neurones a cada capa (inclosos inputs)
-    #         architecture: List[int] = [self.__inputs] + self.__layers
-    #         # print(architecture)
-    #
-    #         # Convertir vectors a np array
-    #         weights_v = np.array(weights)
-    #         bias_v = np.array(bias)
-    #         # print(len(weights_v))
-    #         # print(len(bias_v))
-    #
-    #         # Del vector, hem de generar la matriu de pesos i bias de cada capa
-    #         # Seleccionarem els "n" elemenets de cada vector i en farem un reshape per aconseguir la matriu de la capa
-    #         weight_matrix = []
-    #         bias_vector = []
-    #
-    #         # Per tal poder seleccionar els n elements del vector, es guardarà les posicions que es van agafant
-    #         weight_first_index = 0
-    #         weight_last_index = 0
-    #         bias_first_index = 0
-    #         bias_last_index = 0
-    #
-    #         # Es recorren tots els nombres d'inputs i neurones de l'arquitectura de la xarxa neuronal excepte la sortida, que ja es té en compte en l'última iteració que es farà
-    #         for idx_arc in range(len(architecture) - 1):
-    #
-    #             if idx_arc == 0:
-    #                 # Per la primera iteració agafarem els "n" primers elements (el primer element de "architecture" és el nombre d'inputs)
-    #                 # Calculem quants pesos corresponen a la primera capa (inputs * neurones de la capa)
-    #                 weight_last_index = architecture[idx_arc] * architecture[idx_arc + 1]
-    #                 # Calculem quants bias corresponen a la primera capa (neurones de la capa (les tenim a la següent posició de "architecture"))
-    #                 bias_last_index = architecture[idx_arc + 1]
-    #
-    #                 # Afegim aquests elements a la matriu de pesos (fem el reshape amb el nombre d'inputs i el nombre de neurones)
-    #                 # Per exemple, si tenim 10 inputs i 5 neurones, la matriu serà de la forma 10x5 i seleccionarem els primers 50 elements del vector
-    #                 weight_matrix.append(weights_v[:weight_last_index].reshape(architecture[idx_arc], architecture[idx_arc + 1]))
-    #                 # Fem el mateix per al bias, però com que ja és un vector, no cal fer el reshape
-    #                 bias_vector.append(bias_v[:bias_last_index])
-    #
-    #                 # print("index", weight_first_index, weight_last_index)
-    #                 # print("index_b", bias_first_index, bias_last_index)
-    #                 # print("architecture", architecture[idx_arc], architecture[idx_arc + 1])
-    #             else:
-    #                 # Per a la resta d'iteracions agafarem els "n" següents elements (l'element actual de "architecture" conté el nombre de neurones de la capa anterior, i a la posició + 1 els de la capa actual)
-    #                 # La posició index serà l'última posició d'elements de la iteració anterior
-    #                 weight_first_index = weight_last_index
-    #                 # Calculem el nombre de pesos de la capa i sumem la posició inicial
-    #                 weight_last_index = architecture[idx_arc] * architecture[idx_arc + 1] + weight_first_index
-    #                 # Fem el mateix amb la posició dels bias
-    #                 bias_first_index = bias_last_index
-    #                 bias_last_index = architecture[idx_arc + 1] + bias_first_index
-    #
-    #                 # Afegim aquests elements a la matriu de pesos (fem el reshape corresponent)
-    #                 weight_matrix.append(weights_v[weight_first_index:weight_last_index].reshape(architecture[idx_arc], architecture[idx_arc + 1]))
-    #                 # Fem el mateix per al bias, però com que ja és un vector, no cal fer el reshape
-    #                 bias_vector.append(bias_v[bias_first_index:bias_last_index])
-    #
-    #                 # print("index", weight_first_index, weight_last_index)
-    #                 # print("index_b", bias_first_index, bias_last_index)
-    #                 # print("architecture", architecture[idx_arc], architecture[idx_arc + 1])
-    #
-    #         # print(weight_matrix)
-    #         # print(bias_vector)
-    #
-    #         # Ara, es recorren les capes del model i es van associant amb les matrius de pesos i bias corresponents
-    #         for layer, weights, bias in zip(model.layers, weight_matrix, bias_vector):
-    #             layer.set_weights([weights, bias])
-    #
-    #         return model
-
     def __set_weights_bias_to_model(self, model, weights: List[List[float]], bias: List[List[float]]):
         # Definim el nombre de neurones a cada capa (inclosos inputs)
         architecture: List[int] = [self.__inputs] + self.__layers
-        # print(architecture)
-
-        # Convertir vectors a np array
-        # weights_v = np.array(weights)
-        # bias_v = np.array(bias)
-        # print(len(weights_v))
-        # print(len(bias_v))
 
         # Del vector, hem de generar la matriu de pesos i bias de cada capa
         # Seleccionarem els "n" elemenets de cada vector i en farem un reshape per aconseguir la matriu de la capa
@@ -434,6 +362,7 @@ class Genetic_training:
             bias_v = np.array(bias[id_v])
 
             weight_matrix.append(weights_v.reshape(architecture[idx_arc], architecture[idx_arc + 1]))
+
             # Fem el mateix per al bias, però com que ja és un vector, no cal fer el reshape
             bias_vector.append(bias_v)
 
@@ -448,6 +377,7 @@ class Genetic_training:
 
         return model
 
+    # Creació de la nova generació
     def __create_new_population(self, best_models: List[Dict]) -> None:
         # Actualitzar generació
         self.__generation += 1
@@ -458,10 +388,9 @@ class Genetic_training:
         self.__genetic_training_crossover.update_crossover_ratio(c_r)
         self.__genetic_training_mutation.update_mutation_ratio(m_r)
 
-        # Recuperem la llista de pesos i bias de cada població seleccionada
         # Llista de paths de les poblacions
         models_path: List[str] = [model["model_name"] for model in best_models]
-        # population_weight_and_bias_vectors: List[str, Tuple[List[float], List[float]]] = self.__get_weights_bias_as_vector(models_path)
+        # Recuperem la llista de pesos i bias de cada població seleccionada
         population_weight_and_bias_vectors: List[str, Tuple[List[List[float]], List[List[float]]]] = self.__get_weights_bias_as_vector(models_path)
 
         initial_population_size: int = 0 if not self.__elite_selection else self.__best_n_population
@@ -515,7 +444,7 @@ class Genetic_training:
         return [file for file in all_files if file.endswith(".keras")]
 
     def __save_best_models(self, best_models: List[Dict]) -> None:
-        # Llista de paths de les poblacions
+        # Emmagatzemar millors individus
         models_path: List[str] = [model["model_name"] for model in best_models]
 
         for model_path in models_path:
@@ -525,6 +454,7 @@ class Genetic_training:
                 shutil.copy(self.__directory + model_path, self.__best_models_directory)
 
     def __save_old_models(self, best_models: List[Dict]) -> None:
+        # Emmagatzemar individus no seleccionats
         all_files: List[str] = self.__get_all_population()
         models_path: List[str] = [model["model_name"] for model in best_models]
 
@@ -533,11 +463,11 @@ class Genetic_training:
                 shutil.move(self.__directory + model_path, self.__old_models_directory)
 
     def __simulate_games(self, best_population: Genetic_training_best_population) -> List[Dict]:
+        # Juguen entre ells
         rivals_model_type = [7, 7, 7, 7]
         if self.__sl_model is not None:
+            # Juguen contra un model SL
             rivals_model_type = [7, 8, 8, 8]
-
-        # print(rivals_model_type)
 
         # Agafar tota la població
         population: List[str] = self.__get_all_population()
@@ -546,10 +476,8 @@ class Genetic_training:
 
         # Crear emparellaments random
         if self.__sl_model is None:
-            # print("aaaaa")
             pairings = self.__select_pairings(population)
         else:
-            # print("bbbbb")
             for idx, individual in enumerate(population):
                 pairing: List[str] = []
                 for i in range(self.__num_players):
@@ -557,7 +485,6 @@ class Genetic_training:
                         pairing.append(self.__sl_model)
                     else:
                         pairing.append(individual)
-                # print("pairing", pairing)
                 pairings.append(pairing)
 
         # Afegir-los a una cua
@@ -567,10 +494,8 @@ class Genetic_training:
 
         # Funció per processar els emparellaments de la cua
         def process_pairing(pairing_) -> bool:
-            # print(simulation_number)
             rivals_model_name: List[str] = []
             for idm_model, model_name in enumerate(pairing_):
-                # print(model_name)
                 if rivals_model_type[idm_model] == 7:
                     rivals_model_name.append(self.__directory + model_name)
                 else:
@@ -581,21 +506,21 @@ class Genetic_training:
                                                         rivals_model_name, self.__num_players,
                                                         self.__single_mode,
                                                         self.__rules, False, None)
-            # print("finalized", simulation_number)
             if self.__sl_model is None:
                 for player_id in range(self.__num_players):
+                    # S'agafa les victòries i punts de cada agent
                     wins, points = game.get_player_wins_points(player_id)
+                    # S'afegeixen els millors models a la llista
                     best_population.add_model(pairing_[player_id], wins, points)
+                    # S'emmagatzema els resultats de l'emparellament
                     self.__write_game_log(f"{pairing_[player_id]}, {wins}, {points}")
             else:
                 wins, points = game.get_player_wins_points(0)
                 best_population.add_model(pairing_[0], wins, points)
                 self.__write_game_log(f"{pairing_[0]}, {wins}, {points}")
 
+            # Nul·lificació del joc per alliberar espai
             game.nullify_game()
-            # game = None
-            # del game
-            # gc.collect()
 
             return True
 
@@ -604,27 +529,25 @@ class Genetic_training:
             futures = []
 
             while not pairings_queue.empty():
-                # Llenar la lista de futuros con hasta 6 tareas de la cola
+                # Omplir la llista dels futuras fins arribar al límit de fils indicat
                 while len(futures) < self.__threads and not pairings_queue.empty():
                     pairing = pairings_queue.get()
                     future = executor.submit(process_pairing, pairing)
                     futures.append(future)
 
-                # Esperar a que al menos uno de los futuros termine
+                # Esperar a que alguna simulació acabi
                 concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
 
                 for future in concurrent.futures.as_completed(futures):
-                    # print(future)
                     result: bool = future.result()
-                    # print("future result", result)
                     futures.remove(future)
 
         return best_population.get_best_population()
 
+    # Entrenamenmt
     def __training(self) -> None:
         for i in range(self.__generation, self.__generations):
-            # print("self.__directory", self.__directory)
-            # print("population", population)
+            # Doble selecció
             if self.__finalized_generation and self.__double_tournament:
                 best_population: Genetic_training_best_population = Genetic_training_best_population(self.__best_n_population * 2)
                 best_models: List[Dict] = self.__simulate_games(best_population)
@@ -636,7 +559,9 @@ class Genetic_training:
                 self.__finalized_generation = False
                 self.__save_info_json()
 
+            # Seleccionar els millors individus
             final_best_population: Genetic_training_best_population = Genetic_training_best_population(self.__best_n_population)
+            # Simular emparellaments
             final_best_models: List[Dict] = self.__simulate_games(final_best_population)
 
             # Moure els millors sl_models i la resta

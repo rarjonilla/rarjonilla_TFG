@@ -3,10 +3,15 @@ from typing import Tuple, List, Optional
 
 
 class Genetic_training_mutation:
+    """Classe de Funcions de mutació per Xarxa neuronal"""
     def __init__(self, mutation_ratio: float, min_valid_value: int, max_valid_value: int):
+        # Probabilitat de mutació
         self.__mutation_ratio: float = mutation_ratio
+
+        # Varlor mínim i màxim dels pesos i biaixos (no s'utilitza)
         self.min_valid_value: int = min_valid_value
         self.max_valid_value: int = max_valid_value
+
         # Nota: poso un limit d'un 5% dels gens per a la mutació (és probable que aquest valor varii al fer proves)
         self.gens_mutation_ratio: float = 0.05
 
@@ -14,21 +19,22 @@ class Genetic_training_mutation:
         self.__mutation_ratio = mutation_ratio
 
     def mutation(self, child_vectors: Tuple[List[float], List[float]]) -> Tuple[Tuple[List[float], List[float]], Optional[str]]:
+        # S'executa la mutació si l'atzar ho vol
         if random.random() <= self.__mutation_ratio:
             # LLista de funcions de mutation
             # mutations = [self.__random_resetting_mutation, self.__swap_mutation, self.__partial_shuffle_mutation, self.__inversion_mutation, self.__displacement_mutation, self.__displacement_inversion_mutation]
             mutations = [self.__swap_mutation, self.__partial_shuffle_mutation, self.__inversion_mutation, self.__displacement_mutation, self.__displacement_inversion_mutation]
-            # mutations = [self.__displacement_inversion_mutation]
 
             # Selecció de la funció de crossover aleatòria
             mutation_func = random.choice(mutations)
+
+            # Execució de la funció de mutació
             c = mutation_func(child_vectors)
             return c, mutation_func.__name__
         else:
             return child_vectors, None
 
     # Funcions de mutation
-    # def __random_resetting_mutation(self, child_vectors: Tuple[List[float], List[float]]) -> Tuple[List[float], List[float]]:
     def __random_resetting_mutation(self, child_vectors: Tuple[List[List[float]], List[List[float]]]) -> Tuple[List[List[float]], List[List[float]]]:
         # Capes per realitzar el crossover (les no seleccionades es passarà la capa sencera al fill 1 les del pare 1 i al fill 2 el del pare 2)
         total_selected_layers = random.randint(1, len(child_vectors[0]))

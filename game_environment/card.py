@@ -3,16 +3,20 @@ from game_environment.suit import Suit
 
 
 class Card:
-    """Classe carta....."""
+    """Classe carta"""
 
-    # def __init__(self, suit: int, id_label: int, value: int, is_king: bool, is_knight: bool) -> None:
     def __init__(self, suit: Suit, id_label: int, value: int, training_value: int = 0, training_idx: int = 0) -> None:
+        # Coll de la carta
         self.__suit = suit
+        # Número de la carta (1, 2, ..., 12)
         self.__label: int = id_label
+        # Valor de la carta (0, 2, 3, 4, 10, 11)
         self.__value: int = value
 
-        # Training
+        # Només per training
+        # Ordre de preferència (de 1 a 10): 2, 4, 5, 6, 7, 10, 11, 12, 3, As
         self.__training_value: int = training_value
+        # identificador de la carta pel vector de l'estat en ordre de preferència i per colls (0-9 ors, 10, 19 bastos, 20 a 29 espases, 30 a 39 copes)
         self.__training_idx: int = training_idx
 
     # Getters
@@ -36,8 +40,9 @@ class Card:
     #         return one_hot
 
     # Functions
-    # TODO - s'ha de canviar tots els fi que comproven si la carta té més valor o si te el mateix valor però més label que una altra per aquesta funció
+    # TODO - s'ha de canviar tots els if que comproven si la carta té més valor o si te el mateix valor però més label que una altra per aquesta funció
     def has_more_preference(self, card_to_compare: 'Card') -> bool:
+        # Retorna True si la carta té més preferència que la que arriba per paràmetre
         return self.is_same_suit(card_to_compare.get_suit_id()) and (self.has_higher_value(card_to_compare.get_value()) or (self.has_same_value(card_to_compare.get_value()) and self.is_higher_label(card_to_compare.get_label())))
 
     def has_higher_value(self, value: int) -> bool:
@@ -76,14 +81,12 @@ class Card:
     def wins_card(self, winner_card: 'Card', trump_suit_id: int) -> bool:
         # Mateix pal, cal comprovar quina carta té més valor
         if self.is_same_suit(winner_card.get_suit_id()):
-        # if self.get_suit_id() == winner_card.get_suit_id():
             if self.__value < winner_card.__value or (self.__value == winner_card.__value and self.__label < winner_card.__label):
                 return False
             else:
                 return True
         # Diferent pal, si la carta és del pal del triomf, guanya, sinó, perd
         elif self.is_same_suit(trump_suit_id):
-        #elif self.suit.get_suit_id() == trump_suit_id:
             return True
         else:
             return False

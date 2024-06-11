@@ -17,7 +17,7 @@
     "population_size": 32,
     "best_n_population": 6,
     "generations": 1000,
-    "generation": 7,
+    "generation": 19,
     "cm_directive": 1,
     "custom_crossover_ratio": null,
     "custom_mutation_ratio": null,

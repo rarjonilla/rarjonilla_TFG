@@ -1,6 +1,6 @@
 from itertools import product
 
-
+# Fitxer de TEST
 def calc_intervals_points_combination(is_brisca: bool, num_players: int) -> list[int]:
     # Valors disponibles per a sumar
     values = [0, 2, 3, 4, 10, 11]
@@ -28,7 +28,7 @@ def calc_intervals_points_combination(is_brisca: bool, num_players: int) -> list
     all_negative_sums = set(-one_sum for one_sum in all_sums)
     all_sums = all_sums.union(all_negative_sums)
 
-    # Imprimir las sumas únicas
+    # Imprimir les sumes úniques
     print("Brisca, {} players:".format(num_players))
     # for points in sorted(all_sums):
     print(sorted(all_sums))

@@ -6,18 +6,19 @@ import numpy as np
 
 
 class Monte_carlo:
+    """Classe Monte Carlo - 1 estat"""
 
     def __init__(self, eps: float, eps_decrease: float, gamma: float, model_type: int, model_path: str) -> None:
+        # Informació dels models
         self.__model_type: int = model_type
         self.__model_path: str = model_path
 
         # Probabilitat d'exploració
-        # self.__eps: float = 0.05
         self.__eps: float = eps
+        # Decreixement d'exploració
         self.__eps_decrease: float = eps_decrease
 
-        # Valor de Discount (1 = undiscount)
-        # self.__gamma: float = 1.0
+        # Valor de descompte
         self.__gamma: float = gamma
 
         # Valor esperat de les accions (Agent estimated future reward)
@@ -25,11 +26,10 @@ class Monte_carlo:
 
         # Llista de possibles accions
         self.__action_space: List[int] = []
-        self.__actions: Dict = {}
 
-        # TODO -> returns i Q és el mateix. Només cal 1 dels 2 (estalvio memoria RAM, recursos d'emmagatzematge i temps de guardar / carregar)
-        # Diccionari que conté els returns (G) de cada estat
-        # self.__returns: Dict = {}
+        # TODO s'ha eliminat de l'esta múltiple, no cal
+        # Diccionari d'accions (eliminat de )
+        self.__actions: Dict = {}
 
         # Diccionari que conté les vegades que s'ha visitat un estat i acció concret
         self.__pairs_visited: Dict = {}
@@ -37,15 +37,17 @@ class Monte_carlo:
         # La política és l'estratègia de l'agent
         self.__policy: Dict = {}
 
-        # Llista que conte els estats, accions i returns (G) al llarg de la partida
+        # Llista que conté els estats, accions i returns (G) al llarg de la partida
         self.__states_actions_returns: List[Tuple[int, int, float]] = []
 
-        # Llista que conte els estats, accions i reward de cada ronda al llarg de la partida# Llista que conte els estats, accions i reward de cada ronda al llarg de la partida
+        # Llista que conté els estats, accions i reward de cada ronda al llarg de la partida# Llista que conte els estats, accions i reward de cada ronda al llarg de la partida
         self.__memories: List[Tuple[int, int, int]] = []
 
-        # self.__last_memory: Tuple[int, int, int] = (0, 0, 0)
+        # Estat actual
         self.__state: int = 0
+        # Recompensa actual
         self.__reward: int = 0
+        # Acció actual
         self.__action: int = 0
 
         self.load_model()
@@ -57,9 +59,8 @@ class Monte_carlo:
         self.__states_actions_returns = None
         self.__memories = None
 
-
     def load_model(self) -> None:
-        # Comprovem si ja existeix
+        # Comprovem si ja existeix l'arxiu (s'ha guardat almenys un cop) per carregar els diccionaris i seguir l'entrenament
         if os.path.exists(self.__model_path + "/q.pkl"):
             with open(self.__model_path + "/q.pkl", 'rb') as q_file:
                 self.__q = pickle.load(q_file)
@@ -74,16 +75,11 @@ class Monte_carlo:
                 with open(self.__model_path + "/actions.pkl", 'rb') as actions_file:
                     self.__actions = pickle.load(actions_file)
 
-            # with open(self.__model_path + "/returns.pkl", 'rb') as returns_file:
-            #     self.__returns = pickle.load(returns_file)
-
             with open(self.__model_path + "/info.pkl", 'rb') as info_file:
                 info: Dict = pickle.load(info_file)
                 self.__eps = info["eps"]
                 self.__eps_decrease = info["eps_decrease"]
                 self.__gamma = info["gamma"]
-
-                print(self.__eps)
 
     def save_model(self) -> None:
         if not os.path.exists(self.__model_path):
@@ -102,9 +98,6 @@ class Monte_carlo:
         with open(self.__model_path + "/actions.pkl", 'wb') as actions_file:
             pickle.dump(self.__actions, actions_file)
 
-        # with open(self.__model_path + "/returns.pkl", 'wb') as returns_file:
-        #     pickle.dump(self.__returns, returns_file)
-
         info: Dict = {
             'eps': self.__eps,
             'eps_decrease': self.__eps_decrease,
@@ -115,46 +108,40 @@ class Monte_carlo:
             pickle.dump(info, info_file)
 
     def add_memory(self, player_id: int):
+        # Afegir memòria a la llista
         self.__memories.append((self.__state, self.__action, self.__reward, deepcopy(self.__action_space)))
 
     def set_reward(self, reward: int, player_id: int):
+        # S'indica la recompensa rebuda
         self.__reward = reward
 
     def set_state(self, state: int, player_id: int):
+        # S'indica l'estat actual
         self.__state = state
 
     def choose_action_from_policy(self, player_id: int) -> int:
-        # Es tria u na acció del policy (si no existeix es tria aleatoriament)
+        # Es tria una acció del policy (si no existeix es tria aleatoriament)
         if self.__state in self.__policy:
-            # TODO -> haig de triar tenint en compte les accions disponibles
-            print("policy")
             self.__action = self.__policy[self.__state]
-            if self.__action not in self.__action_space:
-                # print("!!!!!")
-                # Obtener la representación binaria como cadena de caracteres y eliminar el prefijo '0b'
-                cadena_binaria = bin(self.__state)[2:]
-
-                # Convertir la cadena binaria a una lista de bits
-                lista_binaria = [int(bit) for bit in cadena_binaria]
-                # print("Lista binaria:", lista_binaria)
         else:
-            print("random")
             self.__action = np.random.choice(self.__action_space)
 
         return self.__action
 
     def new_episode(self):
+        # Iniciar nou episodi
         self.__states_actions_returns = []
         self.__memories = []
 
     def set_action_space(self, action_space, player_id: int):
+        # S'indica les possibles accions que es poden realitzar
         self.__action_space = action_space
 
         if self.__state not in self.__actions:
             self.__actions[self.__state] = action_space
 
     def __decrease_eps(self):
-        # A cada partida que passa, la taxa d'exploració va perdent força
+        # A cada episodi que passa, la taxa d'exploració va perdent força
         self.__eps -= self.__eps_decrease if self.__eps - self.__eps_decrease > 0 else 0
 
     def __calculate_returns(self):
@@ -162,25 +149,28 @@ class Monte_carlo:
         g = 0
         last = True
         state = None
+
         # Es recorre la memoria a la inversa (del final a l'inici)
         for state, action, reward, available_actions in reversed(self.__memories):
             # L'acció final no s'afegeix a la llista, encara s'ha de calcular
             if last:
                 last = False
             else:
-                # S'afegeix a la llista que conte els estats, accions i returns al llarg de la partida
+                # S'afegeix a la llista que conté els estats, accions i returns al llarg de la partida
                 self.__states_actions_returns.append((state, action, g, available_actions))
 
             g = self.__gamma * g + reward
 
-        # Falta una?
+        # Falta afegir la primera (l'última que es calcula)
         if state is not None:
             self.__states_actions_returns.append((state, action, g, available_actions))
 
-        # Es capgira la llista per tenir-la en ordre d'ocurrencia (de principi del joc a final)
+        # Es capgira la llista per tenir-la en ordre d'ocurrència (de principi del joc a final)
         self.__states_actions_returns.reverse()
 
     def update_policy(self):
+        # Actualització de la política
+        # Calcul dels retorns
         self.__calculate_returns()
 
         # Llista per guardar els espais i accions vistes a la partida
@@ -190,7 +180,8 @@ class Monte_carlo:
         for state, action, g, available_actions in self.__states_actions_returns:
             # Parell (estat - acció)
             sa = (state, action)
-            # En principi mai es repeteix. Estem parlant d'una mateixa partida
+
+            # TODO - En principi mai es repeteix un mateix estat durant el mateix episodi. Estem parlant d'una mateixa partida. Es podria treure aquesta condició i hauria de funcionar igual
             if sa not in states_actions_visited:
                 # Si existeix l'actualitzo, sino el creo a 1
                 if sa in self.__pairs_visited:
@@ -198,38 +189,27 @@ class Monte_carlo:
                 else:
                     self.__pairs_visited[sa] = 1
 
-                # incremental implementation -> amb això s'obté la mitjana dels returns per a un estat concret
-                #   sense haver de calcular cada cop la mitjana amb tots els results anteriors.
+                # incremental implementation -> amb això s'obté la mitjana dels returns per a un estat concret sense haver de calcular cada cop la mitjana amb tots els results anteriors.
                 # https://www.analyticsvidhya.com/blog/2018/11/reinforcement-learning-introduction-monte-carlo-learning-openai-gym/
                 # Every visit monte carlo
-
                 # new estimate = 1 / N * [sample - old estimate]
                 # Es calcula la nova estimació per aquest parell (estat - acció)
-                # if sa in self.__returns:
                 if sa in self.__q:
-                    # self.__returns[sa] += (1 / self.__pairs_visited[sa]) * (g - self.__returns[sa])
                     self.__q[sa] += (1 / self.__pairs_visited[sa]) * (g - self.__q[sa])
                 else:
-                    # self.__returns[sa] = (1 / self.__pairs_visited[sa]) * g
                     self.__q[sa] = (1 / self.__pairs_visited[sa]) * g
-
-                # S'actualitza l'estimació de l'estat acció (jo afegire o actualitzare segons si el tinc o no)
-                # self.__q[sa] = self.__returns[sa]
 
                 # Actualització de la política
                 rand = np.random.random()
                 if rand < 1 - self.__eps:
-                    # Es trien les millors accions per aquest estat (en cas d'empat s'en selecciones totes les iguals)
-                    # Jo tindre les meves possibles accions (cartes a la mà i canvi) en comptes de "actionSpace"
+                    # Es trien les millors accions per aquest estat
                     values = []
-                    # for a in self.__action_space:
                     for a in available_actions:
                         if (state, a) in self.__q:
                             values.append(self.__q[(state, a)])
                     values = np.array(values)
-                    # values = np.array([Q[(state, a)] for a in actionSpace])
-                    # En cas d'empat, es tria una aleatoria
-                    # if len(values) > 0:
+
+                    # En cas d'empat es tria una aleatòria
                     best = np.random.choice(np.where(values == values.max())[0])
 
                     if values[best] < 0 and len(values) < len(available_actions):
@@ -243,12 +223,9 @@ class Monte_carlo:
                         self.__policy[state] = np.random.choice(other_available_actions)
                     else:
                         # S'actualitza la política amb la millor acció
-                        # self.__policy[state] = self.__action_space[best]
                         self.__policy[state] = available_actions[best]
                 else:
                     # S'actualitza la política amb una acció aleatoria
-                    # TODO -> Jo tindre només les accions possibles
-                    # self.__policy[state] = np.random.choice(self.__action_space)
                     self.__policy[state] = np.random.choice(available_actions)
 
                 states_actions_visited.append(sa)

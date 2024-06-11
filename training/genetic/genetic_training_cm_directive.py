@@ -7,12 +7,16 @@ class Genetic_training_cm_directive:
         # 5 - custom ratios
 
         self.__cm_directive: int = cm_directive
+
         # Jo guardo de la generació 1 a la n
         # Si vull aplicar la regla correctament, haig de fer 1 - 1 fins a n - 1 (de la 0 a la n - 1)
         self.__generations: int = generations - 1
+
+        # Inicialització dels ratios
         self.__crossover_ratio: float = 0
         self.__mutation_ratio: float = 0
 
+        # Si la directiva és alguna d'aquestes, el seu valor es pot definir
         if cm_directive == 3:
             self.__crossover_ratio = 0.5
             self.__mutation_ratio = 0.5
@@ -28,6 +32,7 @@ class Genetic_training_cm_directive:
         # Si vull aplicar la regla correctament, haig de fer 1 - 1 fins a n - 1 (de la 0 a la n - 1)
         generation -= 1
 
+        # Càlcul dels ratios segons les fórmules
         if self.__cm_directive == 1:
             # 1- ilm_dhc -> small population
             # CR = 1 - (LG / Gn)
@@ -45,6 +50,7 @@ class Genetic_training_cm_directive:
         # Si vull aplicar la regla correctament, haig de fer 1 - 1 fins a n - 1 (de la 0 a la n - 1)
         generation -= 1
 
+        # Càlcul dels ratios segons les fórmules
         if self.__cm_directive == 1:
             # 1- ilm_dhc -> small population
             # MR = LG / Gn

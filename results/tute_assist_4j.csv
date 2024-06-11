@@ -1,0 +1,7 @@
+Player_0,Player_1,Player_2,Player_3,Wins_p0,Points_p0,Wins_p1,Points_p1,Wins_p2,Points_p2,Wins_p3,Points_p3,Rules
+sl_2c,sl_3c,rl,rand,8,1538,14,2019,18,2087,20,1916,000
+sl_2c,sl_3c,rand,rl,15,1922,7,1567,14,1965,24,2366,000
+sl_2c,rl,sl_3c,rand,10,1937,19,1965,14,1908,18,1930,000
+sl_2c,rl,rand,sl_3c,15,1767,15,1920,15,1999,15,1954,000
+sl_2c,rand,rl,sl_3c,16,2143,12,1667,21,2371,11,1439,000
+sl_2c,rand,sl_3c,rl,18,1941,16,1816,16,2053,11,1610,000

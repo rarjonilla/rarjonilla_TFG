@@ -12,37 +12,41 @@ from training.reinforcement.monte_carlo_multiple_key import Monte_carlo_multiple
 
 class Player:
     """
-    Classe Player...
+    Classe Jugador
     """
     def __init__(self, player_id: int, model_type: int, model_path: Optional[str], rules: Dict, rl_eps: float, rl_eps_decrease: float, rl_gamma: float, rl_agent: Optional[Monte_carlo], training: bool = False) -> None:
+        # Id del jugador (0 a 3)
         self.__id: int = player_id
+        # Mà del jugador
         self.__hand: Hand = Hand(rules['only_assist'])
+        # Indica si s'està fent un entrenament
         self.__training = training
 
         # Training and IA
+        # Tipus i path de l'agent
         self.__model_type: int = model_type
         self.__model_path: str = model_path
+        # Regles que s'estan aplicant a la partida
         self.__rules: Dict = rules
 
-        # Es crea la xarxa neuronal
+        # Es crea la xarxa neuronal (SL o GA) o l'agent per reforç (RL o GA)
         self.nn = None
         self.rl_agent: Monte_carlo = None
         if model_type != 1 and model_type != 9 and model_type != 10:
+            # 1 random, 9 i 10 RL
             self.nn = Neural_network(model_type, model_path)
         elif model_type == 9:
+            # Es crea l'agent per el jugador o s'utilitza l'agent únic
             if rl_agent is None:
                 self.rl_agent = Monte_carlo(rl_eps, rl_eps_decrease, rl_gamma, model_type, model_path)
             else:
                 self.rl_agent = rl_agent
         elif model_type == 10:
+            # Es crea l'agent per el jugador o s'utilitza l'agent únic
             if rl_agent is None:
                 self.rl_agent = Monte_carlo_multiple_state(rl_eps, rl_eps_decrease, rl_gamma, model_type, model_path, self.__training)
             else:
                 self.rl_agent = rl_agent
-
-        # info de round
-        # self.__actual_round_uuid: Optional[UUID] = None
-        #        self.round_step: int = 0
 
     # Getters
     def get_id(self) -> int:
@@ -52,10 +56,11 @@ class Player:
         return self.__model_type == 1
 
     def is_model_type_rl(self) -> bool:
-            return self.__model_type == 9 or self.__model_type == 10
+        return self.__model_type == 9 or self.__model_type == 10
 
     # Functions
     def del_model(self) -> None:
+        # Alliberament de memòria RAM en finalitzar les simulacions
         if self.nn is not None:
             self.nn.del_model()
             del self.nn
@@ -67,17 +72,21 @@ class Player:
         return self.__rules[rule_key]
 
     def get_next_action(self, there_is_trump_card: bool, change_card_is_higher_than_seven: bool, trump_suit_id: int, highest_suit_card: Optional[Card], deck_has_cards: bool, highest_trump_played: Optional[Card], player_state: Player_state = None) -> Tuple[int, Optional[Card]]:
+        # Es tria la següent acció segons el tipus de model
         if self.__model_type != 1 and self.__model_type != 9 and self.__model_type != 10:
+            # Xarxa neuronal
             return self.__get_next_action_NN(there_is_trump_card, change_card_is_higher_than_seven, trump_suit_id, highest_suit_card, deck_has_cards, highest_trump_played, player_state)
         elif self.__model_type == 9 or self.__model_type == 10:
+            # Agent per reforç
             return self.__get_next_action_RL(there_is_trump_card, change_card_is_higher_than_seven, trump_suit_id, highest_suit_card, deck_has_cards, highest_trump_played, player_state)
         elif self.__model_type == 1:
+            # Random
             return self.__get_next_action_random(there_is_trump_card, change_card_is_higher_than_seven, trump_suit_id, highest_suit_card, deck_has_cards, highest_trump_played)
         else:
-            raise Exception("No existeix tipus NN")
+            raise Exception("No existeix aquest tipus")
 
     def __get_next_action_random(self, there_is_trump_card: bool, change_card_is_higher_than_seven: bool, trump_suit_id: int, highest_suit_card: Optional[Card], deck_has_cards: bool, highest_trump_played: Optional[Card]) -> Tuple[int, Optional[Card]]:
-        """docstring"""
+        # Es calcula les possibles accions del torn i se'n tria una a l'atzar
         if self.__is_rule_active('can_change') and there_is_trump_card and self.__hand.can_change(change_card_is_higher_than_seven, trump_suit_id):
             if random.randint(0, 1):
                 return 0, None
@@ -88,17 +97,13 @@ class Player:
 
         return position, card
 
-        # generar SQL string per guardar la jugada
-        # self._generate_sql_string(chosen_action, self.round_step, game_type)
-        # self.round_step += 1
-
     def __get_next_action_NN(self, there_is_trump_card: bool, change_card_is_higher_than_seven: bool, trump_suit_id: int, highest_suit_card: Optional[Card], deck_has_cards: bool, highest_trump_played: Optional[Card], player_state: Player_state) -> Tuple[int, Optional[Card]]:
-        # 1 a 6 -> Supervised Training
-        # 7 -> Genetic
-        # TODO -> Eliminar 2 a 5 (només utilitzo la 6), fer que sigui la 2 i prou
-        # TODO -> Genètic passarà a ser la 3
+        # 1,2,4,5,6,8 -> Supervised Training
+        # 3 i 7 -> Genetic
+        # TODO -> Eliminar 2 a 6 (només utilitzo la 7 i las 8)
 
         # Per a les genetiques inicials (random), es donava el cas que tots els outputs de les cartes disponibles a la mà donaven 0, això provocava que es retornes "0" (el valor inicial) com a millor acció, que indica intercanvi (quan realment no pot intercanviar)
+        # S'inica -1000 per resoldre aquest error
         best_action: int = -1000
         best_result: int = -1000
 
@@ -110,50 +115,49 @@ class Player:
             best_position: int = 0
 
             if self.__is_rule_active('can_change') and there_is_trump_card and self.__hand.can_change(change_card_is_higher_than_seven, trump_suit_id):
+                # El jugador pot intercanviar la carta de triomf
+                # S'agafa l'estat del joc per aquest torn (una còpia, ja que es modificarà i només volem emmagatzemar la que acabi sent triada)
                 player_state_c = copy.deepcopy(player_state)
                 player_state_c.set_action(0, 0)
                 inputs_array: List[int] = player_state_c.get_inputs_array()
 
                 if self.__model_type == 3 or self.__model_type == 5:
+                    # Cas d'etiqueta Win or Lose (una sola sortida)
                     best_result = self.nn.evaluate_model_one_output(inputs_array)
                     best_action = 0
                 elif self.__model_type == 2 or self.__model_type == 4 or self.__model_type == 6 or self.__model_type == 8:
-                    # La supervisada avalua l'acció i selecciona l'output amb major probabilitat
+                    # Cas d'etiqueta puntuació i suma de puntuació i heurístic
+                    # La supervisada avalua l'acció i selecciona l'output amb major probabilitat i la que més puntuació dona
                     max_position, result = self.nn.evaluate_model_n_outputs(inputs_array)
                     best_position = max_position
                     best_result = result
                     best_action = 0
 
-                    # print(best_position, best_result)
-
+            # Selecció de les cartes jugables (s'ha d'avaluar per a cadascuna)
             playable_cards_positions: List[int] = self.__hand.get_playable_cards_positions(trump_suit_id, highest_suit_card, deck_has_cards, highest_trump_played)
 
             for card_pos in playable_cards_positions:
                 card_pos, card_in_hand = self.__hand.get_card_in_position_no_remove(card_pos)
 
+                # S'agafa l'estat del joc per aquest torn (una còpia, ja que es modificarà i només volem emmagatzemar la que acabi sent triada)
                 player_state_c = copy.deepcopy(player_state)
                 player_state_c.set_action(card_in_hand.get_training_idx(), 1)
                 inputs_array: List[int] = player_state_c.get_inputs_array()
+
                 if self.__model_type == 3 or self.__model_type == 5:
+                    # Cas d'etiqueta Win or Lose (una sola sortida)
                     result = self.nn.evaluate_model_one_output(inputs_array)
                     best_result = max(best_result, result)
-                    # print(best_result, result)
 
+                    # Si el resultat d'aquesta acció és millor que la major fins al moment, s'actualitza
                     if best_result == result:
                         best_action = card_pos + 1
                 elif self.__model_type == 2 or self.__model_type == 4 or self.__model_type == 6 or self.__model_type == 8:
+                    # Cas d'etiqueta puntuació i suma de puntuació i heurístic
+                    # La supervisada avalua l'acció i selecciona l'output amb major probabilitat i la que més puntuació dona
                     max_position, result = self.nn.evaluate_model_n_outputs(inputs_array)
-                    # print(max_position, result)
-                    # print(best_result, result)
-                    # print(best_action)
-                    # print("")
-
-                    #print(max_position, result)
 
                     # Si la posicio és millor, s'ha de canviar, però si es igual a l'anterior s'ha de comprovar el result
-
-                    # best_position = max(best_position, max_position)
-
                     if max_position > best_position:
                         best_result = result
                         best_action = card_pos + 1
@@ -163,15 +167,7 @@ class Player:
                             best_action = card_pos + 1
                             best_result = result
 
-                    # best_position = max(best_position, max_position)
-                    #
-                    #                 if best_position == max_position:
-                    #                     best_action = card_pos + 1
-                    #                     best_result = result
-
-                    # print(best_position, best_result, best_action)
-                    # print("")
-
+            # Es retorna la millor acció (es diferencia entre intercanvi o jugar carta)
             if self.__model_type == 3 or self.__model_type == 5:
                 if best_action == 0:
                     return 0, None
@@ -179,12 +175,12 @@ class Player:
                     position, card = self.__hand.get_card_in_position(best_action - 1)
                     return position, card
             elif self.__model_type == 2 or self.__model_type == 4 or self.__model_type == 6 or self.__model_type == 8:
-                # print("best", best_position, best_result, best_action)
                 if best_action == 0:
                     return 0, None
                 else:
                     position, card = self.__hand.get_card_in_position(best_action - 1)
                     return position, card
+
         elif self.__model_type == 7:
             # Genetica
             # La genetica té tants outputs com accions posibles
@@ -193,24 +189,25 @@ class Player:
             inputs_array: List[int] = player_state.get_inputs_array()
             results = self.nn.evaluate_model_n_outputs_genetic(inputs_array)
 
-            # print(results)
-
             if self.__is_rule_active('can_change') and there_is_trump_card and self.__hand.can_change(change_card_is_higher_than_seven, trump_suit_id):
-                # print("inside can change")
+                # Acció de pot intercanviar carta
                 best_action = 0
                 best_result = results[40]
 
+            # Cartes jugables
             playable_cards_positions: List[int] = self.__hand.get_playable_cards_positions(trump_suit_id, highest_suit_card, deck_has_cards, highest_trump_played)
-            # print("playable_cards_positions", playable_cards_positions)
             for card_pos in playable_cards_positions:
                 card_pos, card_in_hand = self.__hand.get_card_in_position_no_remove(card_pos)
 
+                # Es comprova el valor del resultat de la posició de la carta
                 result = results[card_in_hand.get_training_idx()]
 
+                # Si és millor, s'actualitza
                 if result > best_result:
                     best_action = card_pos + 1
                     best_result = result
 
+            # Es retorna la millor acció (es diferencia entre intercanvi o jugar carta)
             if best_action == 0:
                 # print("intercanviar carta")
                 return 0, None
@@ -221,11 +218,17 @@ class Player:
 
     def __get_next_action_RL(self, there_is_trump_card: bool, change_card_is_higher_than_seven: bool, trump_suit_id: int, highest_suit_card: Optional[Card], deck_has_cards: bool, highest_trump_played: Optional[Card], player_state: Player_state) -> Tuple[int, Optional[Card]]:
         # 9 / 10 RL Montecarlo
+        # S'agafa l'estat del joc per aquest torn
         inputs_array: List[int] = player_state.get_inputs_array()
+
         if self.__model_type == 9:
+            # RL amb un únic estat
+            # Es transforma l'estat al seu valor decimal
             inputs_array_str: str = ''.join(map(str, inputs_array))
             state: int = int(inputs_array_str, 2)
         else:
+            # RL amb múltiples estats
+            # Es transforma cada part de l'estat al seu valor decimal
             state_list: List[int] = []
             for input_array in inputs_array:
                 if len(input_array) > 0:
@@ -236,23 +239,29 @@ class Player:
 
             state = tuple(state_list)
 
+        # s'indica a l'agent l'estat en format decimal
         self.rl_agent.set_state(state, self.__id)
 
+        # Accions que pot dur a terme
         actions: List[int] = []
 
         if self.__is_rule_active('can_change') and there_is_trump_card and self.__hand.can_change(change_card_is_higher_than_seven, trump_suit_id):
+            # Intervanvi de carta
             actions.append(40)
 
+        # Cartes jugables
         playable_cards_positions: List[int] = self.__hand.get_playable_cards_positions(trump_suit_id, highest_suit_card, deck_has_cards, highest_trump_played)
-        # print("playable_cards_positions", playable_cards_positions)
 
         for card_pos in playable_cards_positions:
             card_pos, card_in_hand = self.__hand.get_card_in_position_no_remove(card_pos)
             actions.append(card_in_hand.get_training_idx())
 
+        # S'actualitza l'espai d'accions disponibles per aquest estat
         self.rl_agent.set_action_space(actions, self.__id)
+        # Es tria una acció de la política de l'agent
         action = self.rl_agent.choose_action_from_policy(self.__id)
 
+        # Es retorna la millor acció (es diferencia entre intercanvi o jugar carta)
         if action == 40:
             return 0, None
         else:
@@ -263,6 +272,7 @@ class Player:
             return position, card
 
     def get_next_action_sing_declarations(self, trump_suit_id: int, player_state: Player_state) -> Optional[int]:
+        # Es tria quin cant es fa segons el tipus de l'agent
         if self.__model_type == 2 or self.__model_type == 3 or self.__model_type == 4 or self.__model_type == 6 or self.__model_type == 8:
             return self.__get_next_action_NN_sing_declaration(trump_suit_id, player_state)
         elif self.__model_type == 9 or self.__model_type == 10:
@@ -278,6 +288,7 @@ class Player:
 
         # Es comprova si existeixen tutes a la seva mà
         sing_suits_ids: List[int] = self.__hand.sing_suits_in_hand()
+
         # Si un d'ells és les 40 no es pot triar
         if trump_suit_id in sing_suits_ids:
             return trump_suit_id
@@ -299,14 +310,11 @@ class Player:
         elif len(sing_suits_ids) > 0:
             # Es tria un d'ells
 
+            # El funcionament és el mateix que per a la tria d'una acció, però ara només es tenen en compte els cants
             best_action: int = -1000
             best_result: int = -1000
             best_position: int = 0
 
-            # 1 a 6 -> Supervised Training
-            # 7 -> Genetic
-            # TODO -> Eliminar 2 a 5 (només utilitzo la 6), fer que sigui la 2 i prou
-            # TODO -> Genètic passarà a ser la 3
             if self.__model_type < 7:
                 for ss in sing_suits_ids:
                     player_state_c = copy.deepcopy(player_state)
@@ -316,7 +324,6 @@ class Player:
                     if self.__model_type == 3 or self.__model_type == 5:
                         result = self.nn.evaluate_model_one_output(inputs_array)
                         best_result = max(best_result, result)
-                        # print(best_result, result)
 
                         if best_result == result:
                             best_action = ss
@@ -338,7 +345,7 @@ class Player:
 
                 # Posicions 41-44 -> posibles cants
 
-                # ss és el idx de suit de possibles cants (de 1 a 4), com que les posicions son de la 41 a la 44 a resukts, hem de sumar-li 40
+                # ss és el idx de suit de possibles cants (de 1 a 4), com que les posicions son de la 41 a la 44 a results, hem de sumar-li 40
                 for ss in sing_suits_ids:
                     result = results[ss + 40]
 
@@ -353,6 +360,8 @@ class Player:
 
     def __get_next_action_RL_sing_declaration(self, trump_suit_id: int, player_state: Player_state) -> Tuple[int, Optional[Card]]:
         # 9 / 10 RL Montecarlo
+        # El funcionament és el mateix que per a la tria d'una acció, però ara només es tenen en compte els cants
+
         inputs_array: List[int] = player_state.get_inputs_array()
         if self.__model_type == 9:
             inputs_array_str: str = ''.join(map(str, inputs_array))
@@ -370,22 +379,16 @@ class Player:
 
         self.rl_agent.set_state(state, self.__id)
 
-        # # 9 RL Montecarlo
-        #         inputs_array: List[int] = player_state.get_inputs_array()
-        #         inputs_array_str: str = ''.join(map(str, inputs_array))
-        #         state: int = int(inputs_array_str, 2)
-        #         self.rl_agent.set_state(state, self.__id)
-
         actions: List[int] = []
 
         # Es comprova si existeixen tutes a la seva mà
         sing_suits_ids: List[int] = self.__hand.sing_suits_in_hand()
+
         # Si un d'ells és les 40 no es pot triar
         if trump_suit_id in sing_suits_ids:
             return trump_suit_id
         elif len(sing_suits_ids) > 0:
             # Es tria un d'ells
-
             for ss in sing_suits_ids:
                 actions.append(ss + 40)
 
@@ -394,13 +397,8 @@ class Player:
 
             return action - 40
 
-    def init_hand(self, round_uuid: UUID) -> None:
+    def init_hand(self) -> None:
         self.__hand = Hand(self.__rules['only_assist'])
-        self.__actual_round_uuid = round_uuid
-        # self.round_step = 0
-
-    def reset_seen_cards(self) -> None:
-        pass
 
     # Hand Functions
     def hand_add_card_to_hand(self, card: Card) -> None:

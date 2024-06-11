@@ -6,12 +6,15 @@ from configuration import PRINT_CONSOLE
 
 class Hand:
     """
-    Classe Hand...
+    Classe Mà d'un jugador
     """
     def __init__(self, only_assist_rule: bool) -> None:
+        # Llista de cartes
         self.__cards: List[Card] = []
+        # Llista de cants (els que ja ha fet)
         self.__singed_suits: List[int] = []
 
+        # Indica la modalitat de Tute (normal o només obligat a assistir) -> Per calculat les cartes jugables de la mà
         self.__only_assist_rule: bool = only_assist_rule
 
     # Getters
@@ -29,6 +32,7 @@ class Hand:
         self.__singed_suits.append(suit_id)
 
     def black_hand_cards_position(self, trump_suit_id: int) -> Optional[List[int]]:
+        # Calcula si es guanya per mà negra. Es retorna les posicions de les cartes a la mà o None i no pot guanyar
         card_positions: List[int] = []
         for i, card in enumerate(self.__cards):
             if (card.is_as() or card.is_king() or card.is_three()) and card.is_same_suit(trump_suit_id):
@@ -40,33 +44,27 @@ class Hand:
         return None
 
     def can_change(self, change_card_is_higher_than_seven: bool, round_suit_id: int) -> bool:
-        # print("can_change")
-        # print("change_card_is_higher_than_seven: " + str(change_card_is_higher_than_seven))
-        # print("round_suit: " + SUITS[round_suit_id])
-
+        # Es comprova si pot intercanviar la carta de triomf
         for card in self.__cards:
             if change_card_is_higher_than_seven and card.is_same_suit(round_suit_id) and card.is_seven():
-                # print("te la carta per canviar")
-                # print(card)
                 return True
             elif not change_card_is_higher_than_seven and card.is_same_suit(round_suit_id) and card.is_two():
-                # print("te la carta per canviar")
-                # print(card)
                 return True
 
         return False
 
     def cards_of_suit(self, suit_id: int) -> List[Card]:
+        # Retorna les cartes de la mà d'un coll concret
         suit_cards: List[Card] = []
 
         for card in self.__cards:
-            # if card.get_suit_id() == suit_id:
             if card.is_same_suit(suit_id):
                 suit_cards.append(card)
 
         return suit_cards
 
     def card_to_change(self, change_card_is_higher_than_seven: bool, round_suit_id: int) -> Tuple[int, Optional[Card]]:
+        # Es retorna la posició i la carta que pot intercanviar la carta de triomf en cas que la tingui
         for i, card in enumerate(self.__cards):
             if (change_card_is_higher_than_seven and card.is_same_suit(round_suit_id) and card.is_seven()) or (not change_card_is_higher_than_seven and card.get_suit_id() == round_suit_id and card.is_two()):
                 return i, card
@@ -80,25 +78,31 @@ class Hand:
         self.__cards[card_position] = new_card
 
     def get_card_in_position(self, card_position: int) -> Tuple[int, Card]:
+        # Selecciona la carta de la mà i s'elimina (es juga o s'intercanvia)
         card = self.__cards[card_position]
         self.remove_card(card)
 
         return card_position, card
 
     def get_card_in_position_no_remove(self, card_position: int) -> Tuple[int, Card]:
+        # Selecciona la carta de la mà i no s'elimina
         card = self.__cards[card_position]
         return card_position, card
 
     def get_card_position(self, card: Card) -> int:
+        # Retorna la carta d'una posició concreta
         if PRINT_CONSOLE:
             print(self.__cards)
+
         if card in self.__cards:
             if PRINT_CONSOLE:
                 print("if")
+
             return self.__cards.index(card)
 
         if PRINT_CONSOLE:
             print("else")
+
         return -1
 
     def get_playable_cards_positions(self, trump_suit_id: int, highest_suit_card: Optional[Card], deck_has_cards: bool, highest_trump_played: Optional[Card]) -> List[int]:
@@ -106,33 +110,25 @@ class Hand:
         # Pot triar la carta de la seva mà que vulgui
 
         # Tute -> only_assist = False
-        # https://es.wikihow.com/jugar-al-tute
-        # https://es.wikipedia.org/wiki/Tute
-
         # Si és la primera acció (juga la primera carta d'aquesta ronda), pot triar la carta que vulgui
-
         # Si no és la primera acció (ja hi ha alguna carta en joc), ha de triar una carta del mateix pal
         #   A més, si disposa d'una carta del mateix pal, però superior, està obligat a tirar-la (no pot tirar una de més baixa si en té una de més alta)
         #   En cas que no tingui cap carta del mateix pal, està obligat a tirar una carta del pal del triomf
-        #   Si algú ja ha tirat un triomf perque no te del mateix pal, el jugador ha de seguir tirant una carta del mateix pal inicial, però no cal que sigui superior a les altres
-        #   Si algú ja ha tirat un triomf perque no te del mateix pal, i el jugador no té cap carta del pal, si el jugador té una carta de triomf superior a la jugada, ha de tirar-la
-        #   Si algú ja ha tirat un triomf perque no te del mateix pal, i el jugador no té cap carta del pal, si el jugador té una carta de triomf, però no superior a la jugada, pot tirar la carta que vulgui
+        #   Si algú ja ha tirat un triomf perquè no te del mateix pal, el jugador ha de seguir tirant una carta del mateix pal inicial, però no cal que sigui superior a les altres
+        #   Si algú ja ha tirat un triomf perquè no te del mateix pal, i el jugador no té cap carta del pal, si el jugador té una carta de triomf superior a la jugada, ha de tirar-la
+        #   Si algú ja ha tirat un triomf perquè no te del mateix pal, i el jugador no té cap carta del pal, si el jugador té una carta de triomf, però no superior a la jugada, pot tirar la carta que vulgui
         #   Si no té carta del mateix pal ni de triomf, pot tirar la carta que vulgui
 
         # Tute -> only_assist = True
         # Els jugadors només tenen l'obligació d'assistir (no cal montar, fallar ni trepitjar)
 
-        # trump_suit_id: int, first_round_card: Card | None, deck_has_cards: bool, round_trump_played: bool
+        # Inicialització de les variables necessàries per al càlcul
         playable_cards: List[int] = []
         all_cards: List[int] = []
         same_trump_suit_cards: List[int] = []
         same_trump_suit_cards_higher: List[int] = []
         same_played_suit_cards: List[int] = []
         same_played_suit_cards_higher: List[int] = []
-
-        # print("trump_suit_id", trump_suit_id)
-        # print("highest_suit_card", highest_suit_card)
-        # print("highest_trump_played", highest_trump_played)
 
         # Recopilacio de les diferents combinacions possibles
         for i, card in enumerate(self.__cards):
@@ -149,15 +145,7 @@ class Hand:
                     same_trump_suit_cards_higher.append(i)
 
         # Aplicació de les regles
-        # print("trump_suit_id ", trump_suit_id)
-        # print("highest_suit_card ", highest_suit_card)
-        # print("deck_has_cards ", deck_has_cards)
-        # print("highest_trump_played ", highest_trump_played)
-        # print("same_played_suit_cards ", same_played_suit_cards)
-        # print("same_played_suit_cards_higher ", same_played_suit_cards_higher)
-        # print("same_trump_suit_cards ", same_trump_suit_cards)
-        # print("same_trump_suit_cards_higher ", same_trump_suit_cards_higher)
-
+        # Veure "print" per entendre de quin cas es tracta
         if highest_suit_card is None:
             if PRINT_CONSOLE:
                 print("Primera ronda, pot jugar el que vulgui")
@@ -198,6 +186,7 @@ class Hand:
         return playable_cards
 
     def get_playable_cards(self, trump_suit_id: int, highest_suit_card: Optional[Card], deck_has_cards: bool, highest_trump_played: Optional[Card]) -> List[Card]:
+        # Es retorna una llista amb les cartes jugables per la ronda actual
         card_pos: List[int] = self.get_playable_cards_positions(trump_suit_id, highest_suit_card, deck_has_cards, highest_trump_played)
         card_list: List[Card] = []
 
@@ -208,6 +197,7 @@ class Hand:
         return card_list
 
     def get_sing_cards_position(self, singed_suit_id: int) -> List[int]:
+        # Retorna la posició de les cartes del cant d'un coll en concret
         positions: List[int] = []
         for i, card in enumerate(self.__cards):
             if card.is_same_suit(singed_suit_id) and (card.is_king() or card.is_knight()):
@@ -216,6 +206,7 @@ class Hand:
         return positions
 
     def has_black_hand(self, trump_suit_id: int) -> bool:
+        # Es calcula si té la mà negra
         black_hand_cards: int = 0
         for card in self.__cards:
             if (card.is_as() or card.is_king() or card.is_three()) and card.is_same_suit(trump_suit_id):
@@ -224,6 +215,7 @@ class Hand:
         return black_hand_cards == 3
 
     def has_tute(self) -> Tuple[bool, bool]:
+        # Es calcula si té Tute
         kings: int = 0
         knights: int = 0
         for card in self.__cards:
@@ -238,6 +230,7 @@ class Hand:
         self.__cards.remove(card)
 
     def sing_suits_in_hand(self) -> List[int]:
+        # Es calcula si pot fer cant per a cada coll
         sing_declarations: List[int] = [0] * 4
         sing_suits_ids: List[int] = []
 
@@ -252,9 +245,11 @@ class Hand:
         if PRINT_CONSOLE:
             if len(sing_suits_ids) > 0:
                 print(len(sing_suits_ids), " tutes a la mà", sing_suits_ids)
+
         return sing_suits_ids
 
     def tute_cards_position(self) -> Optional[List[int]]:
+        # Es retorna la posició de les cartes amb les que guanya per Tute
         kings_card_positions: List[int] = []
         knights_card_positions: List[int] = []
         for i, card in enumerate(self.__cards):

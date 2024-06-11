@@ -1,11 +1,10 @@
 class Suit:
-    """
-    Classe suit.....
-    """
+    """Classe Coll"""
 
-    # def __init__(self, suit: int, id_label: int, value: int, is_king: bool, is_knight: bool) -> None:
     def __init__(self, suit_id: int, label: int) -> None:
+        # id del coll (1 a 4)
         self.__id: int = suit_id
+        # Text del coll
         self.__label: int = label
 
     # Getters
@@ -14,12 +13,6 @@ class Suit:
 
     def get_label(self) -> int:
         return self.__label
-
-    #     def get_one_hot(self) -> str:
-    #         one_hot = ""
-    #         for i in range(1, 5):
-    #             one_hot += "1, " if i == self.__id else "0, "
-    #         return one_hot
 
     # Functions
     def is_same_suit(self, suid_id: int) -> bool:
